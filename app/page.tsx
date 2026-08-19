@@ -219,6 +219,71 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="actions-panel">
+        <div className="panel">
+          <h3>STRK20 Actions</h3>
+          <div className="grid">
+            <div className="field">
+              <label htmlFor="tokenAddress">Token address</label>
+              <input id="tokenAddress" value={tx.amount /* placeholder, replaced below by state */} readOnly />
+            </div>
+            <div className="field">
+              <label htmlFor="recipient">Recipient (note id or address)</label>
+              <input id="recipient" value={""} onChange={() => {}} placeholder="0x... or note id" />
+            </div>
+            <div className="field">
+              <label htmlFor="actionAmount">Amount</label>
+              <input id="actionAmount" type="number" defaultValue={tx.amount} />
+            </div>
+          </div>
+
+          <div style={{ marginTop: 12 }}>
+            <button
+              onClick={async () => {
+                if (!wallet) return;
+                try {
+                  const token = "0x0000000000000000000000000000000000000000"; // replace with real token
+                  const amount = String(tx.amount);
+                  // @ts-ignore - wallet.request typed to accept Rpc messages
+                  const res = await wallet.request({ type: "wallet_addInvokeTransaction", params: { contractAddress: process.env.NEXT_PUBLIC_STRK20_POOL, entrypoint: "shield", calldata: [token, amount, "0"] } });
+                  // eslint-disable-next-line no-console
+                  console.log(res);
+                  alert("Shield transaction prepared (check wallet)");
+                } catch (e) {
+                  // eslint-disable-next-line no-console
+                  console.error(e);
+                  alert("Failed to prepare shield");
+                }
+              }}
+              className="primary-button"
+            >
+              Shield
+            </button>
+
+            <button
+              onClick={async () => {
+                if (!wallet) return;
+                try {
+                  const token = "0x0000000000000000000000000000000000000000";
+                  const amount = String(tx.amount);
+                  // @ts-ignore
+                  const res = await wallet.request({ type: "wallet_addInvokeTransaction", params: { contractAddress: process.env.NEXT_PUBLIC_STRK20_POOL, entrypoint: "privacy_invoke", calldata: [token, amount] } });
+                  console.log(res);
+                  alert("Private transfer prepared (check wallet)");
+                } catch (e) {
+                  console.error(e);
+                  alert("Failed to prepare private transfer");
+                }
+              }}
+              className="secondary-button"
+              style={{ marginLeft: 8 }}
+            >
+              Private transfer
+            </button>
+          </div>
+        </div>
+      </section>
+
       <section className="signal-list">
         {analysis.findings.map((item) => (
           <article key={item.title} className="signal panel">
