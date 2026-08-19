@@ -1,0 +1,45 @@
+name: Compile Cairo helper
+
+on:
+  workflow_dispatch:
+
+jobs:
+  compile:
+    name: Compile Cairo contracts and upload artifacts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Ensure Docker available
+        run: docker --version
+
+      - name: Pull Cairo image (try GHCR first, then Docker Hub fallback)
+        id: pull
+        run: |
+          set -e
+          IMAGE=ghcr.io/starkware-libs/cairo:1.0.0
+          echo "Trying to pull $IMAGE"
+          if ! docker pull $IMAGE; then
+            IMAGE=nethermindlabs/cairo-1:latest
+            echo "Falling back to $IMAGE"
+            docker pull $IMAGE
+          fi
+          echo "IMAGE=$IMAGE" >> $GITHUB_OUTPUT
+
+      - name: Compile Cairo contracts
+        run: |
+          set -e
+          IMAGE=${{ steps.pull.outputs.IMAGE }}
+          mkdir -p cairo_build
+          docker run --rm -v "${{ github.workspace }}/cairo/src:/workspace/cairo/src" -v "${{ github.workspace }}/cairo_build:/out" $IMAGE bash -lc 'for f in /workspace/cairo/src/*.cairo; do fname=$(basename "$f" .cairo); echo Compiling $f; cairo-compile "$f" --output "/out/$fname.sierra.json" || exit 2; cairo-compile "$f" --output "/out/$fname.casm.json" --casm || true; done'
+
+      - name: List built artifacts
+        run: ls -la cairo_build || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cairo_artifacts
+          path: cairo_build/
