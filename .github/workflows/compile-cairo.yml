@@ -15,7 +15,7 @@ jobs:
       - name: Ensure Docker available
         run: docker --version
 
-      - name: Pull Cairo image (try multiple images and fallback)
+      - name: Pull Cairo image (try multiple images, but continue if none available)
         id: pull
         run: |
           set -e
@@ -38,21 +38,56 @@ jobs:
             fi
           done
           if [ -z "$IMAGE" ]; then
-            echo "No Docker image could be pulled. Exiting with helpful diagnostics."
+            echo "No Docker image could be pulled. Will try a runner-local install fallback."
             docker version || true
             echo "List local images:" && docker images || true
-            echo "Run this workflow again after ensuring your runner can pull container images." >&2
-            exit 1
           fi
           echo "IMAGE=$IMAGE" >> $GITHUB_OUTPUT
 
-      - name: Compile Cairo contracts
+      - name: Install Cairo toolchain on runner (fallback)
+        if: steps.pull.outputs.IMAGE == ''
         run: |
           set -e
-          IMAGE=${{ steps.pull.outputs.IMAGE }}
-          echo "Compiling using image: $IMAGE"
+          echo "Runner fallback: installing Python/pip and attempting to install cairo toolchain via pip"
+          sudo apt-get update
+          sudo apt-get install -y python3 python3-pip build-essential git pkg-config libssl-dev || true
+          python3 -m pip install --upgrade pip
+          # Try community cairo-lang (may be for Cairo v0.x), but it's a reasonable fallback on runners
+          python3 -m pip install cairo-lang || true
+          # If cairo-compile still missing, attempt to build/install from the repository
+          if ! command -v cairo-compile >/dev/null 2>&1; then
+            echo "cairo-compile not found after pip install; attempting source build (best-effort, may fail)"
+            if [ ! -d /tmp/cairo-src ]; then
+              git clone https://github.com/starkware-libs/cairo.git /tmp/cairo-src || true
+            fi
+            if [ -d /tmp/cairo-src ]; then
+              pushd /tmp/cairo-src || true
+              python3 -m pip install -e . || true
+              popd || true
+            fi
+          fi
+          echo "Tool check:"
+          which cairo-compile || true
+          cairo-compile --version || true
+
+      - name: Compile Cairo contracts (docker if available, otherwise runner-local)
+        run: |
+          set -e
           mkdir -p cairo_build
-          docker run --rm -v "${{ github.workspace }}/cairo/src:/workspace/cairo/src" -v "${{ github.workspace }}/cairo_build:/out" "$IMAGE" bash -lc 'for f in /workspace/cairo/src/*.cairo; do fname=$(basename "$f" .cairo); echo Compiling $f; cairo-compile "$f" --output "/out/$fname.sierra.json" || { echo "cairo-compile failed for $f"; exit 2; }; cairo-compile "$f" --output "/out/$fname.casm.json" --casm || true; done'
+          IMAGE=${{ steps.pull.outputs.IMAGE }}
+          if [ -n "$IMAGE" ]; then
+            echo "Using Docker image: $IMAGE"
+            docker run --rm -v "${{ github.workspace }}/cairo/src:/workspace/cairo/src" -v "${{ github.workspace }}/cairo_build:/out" "$IMAGE" bash -lc 'for f in /workspace/cairo/src/*.cairo; do fname=$(basename "$f" .cairo); echo Compiling $f; cairo-compile "$f" --output "/out/$fname.sierra.json" || { echo "cairo-compile failed for $f"; exit 2; }; cairo-compile "$f" --output "/out/$fname.casm.json" --casm || true; done'
+          else
+            echo "No Docker image available; compiling on the runner"
+            for f in cairo/src/*.cairo; do
+              fname=$(basename "$f" .cairo)
+              echo Compiling $f
+              cairo-compile "$f" --output "cairo_build/$fname.sierra.json" || { echo "cairo-compile failed for $f"; exit 2; }
+              # CASM optional
+              cairo-compile "$f" --output "cairo_build/$fname.casm.json" --casm || true
+            done
+          fi
 
       - name: List built artifacts
         run: ls -la cairo_build || true
