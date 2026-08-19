@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { connect, disconnect, type StarknetWindowObject } from "get-starknet";
 import { analyzeTransaction, type TxInput } from "../lib/privacy";
 
 const initialState: TxInput = {
@@ -14,11 +15,75 @@ const initialState: TxInput = {
 
 export default function Home() {
   const [tx, setTx] = useState<TxInput>(initialState);
+  const [wallet, setWallet] = useState<StarknetWindowObject | null>(null);
+  const [walletStatus, setWalletStatus] = useState<string>("Wallet not connected");
+  const [walletAddress, setWalletAddress] = useState<string>("Not connected");
   const analysis = useMemo(() => analyzeTransaction(tx), [tx]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleWalletEvent = async () => {
+      const current = (window as any).starknetLastSelectedWallet ?? null;
+      setWallet(current);
+      if (current) {
+        try {
+          const accounts = await current.request({ type: "wallet_requestAccounts" });
+          setWalletAddress(accounts[0] ?? "Connected");
+          setWalletStatus(`${current.name ?? "Wallet"} connected`);
+        } catch {
+          setWalletAddress("Connected");
+          setWalletStatus(`${current.name ?? "Wallet"} connected`);
+        }
+      } else {
+        setWalletAddress("Not connected");
+        setWalletStatus("Wallet not connected");
+      }
+    };
+
+    handleWalletEvent();
+    window.addEventListener("starknet-wallet-disconnected", handleWalletEvent);
+    window.addEventListener("starknet-wallet-connected", handleWalletEvent);
+
+    return () => {
+      window.removeEventListener("starknet-wallet-disconnected", handleWalletEvent);
+      window.removeEventListener("starknet-wallet-connected", handleWalletEvent);
+    };
+  }, []);
 
   const handleChange = <K extends keyof TxInput>(key: K, value: TxInput[K]) => {
     setTx((prev) => ({ ...prev, [key]: value }));
   };
+
+  const handleConnect = async () => {
+    try {
+      const selected = await connect({ modalMode: "alwaysAsk", modalTheme: "dark" });
+
+      if (!selected) {
+        setWalletStatus("Wallet connection cancelled");
+        return;
+      }
+
+      const accounts = await selected.request({ type: "wallet_requestAccounts" });
+      setWallet(selected);
+      setWalletAddress(accounts[0] ?? "Connected");
+      setWalletStatus(`${selected.name ?? "Wallet"} connected`);
+    } catch {
+      setWalletStatus("Wallet connection failed");
+    }
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      await disconnect();
+    } finally {
+      setWallet(null);
+      setWalletAddress("Not connected");
+      setWalletStatus("Wallet disconnected");
+    }
+  };
+
+  const network = process.env.NEXT_PUBLIC_CHAIN_ID ?? "SN_MAIN";
 
   const ringStyle: CSSProperties = {
     ["--value" as any]: `${analysis.score * 3.6}deg`,
@@ -34,6 +99,35 @@ export default function Home() {
           GhostLine checks timing, address reuse, activity history, and transaction rhythm before you sign.
         </p>
       </header>
+
+      <section className="wallet-panel panel">
+        <div>
+          <div className="wallet-label">Wallet status</div>
+          <div className="wallet-status">{walletStatus}</div>
+        </div>
+
+        <div className="wallet-metadata">
+          <div>
+            <span className="meta-label">Network</span>
+            <strong>{network}</strong>
+          </div>
+          <div>
+            <span className="meta-label">Address</span>
+            <strong>{walletAddress}</strong>
+          </div>
+        </div>
+
+        <div className="wallet-actions">
+          <button onClick={handleConnect} className="primary-button">
+            {wallet ? "Reconnect wallet" : "Connect wallet"}
+          </button>
+          {wallet ? (
+            <button onClick={handleDisconnect} className="secondary-button">
+              Disconnect
+            </button>
+          ) : null}
+        </div>
+      </section>
 
       <section className="score-card">
         <div className="panel risk-panel">
