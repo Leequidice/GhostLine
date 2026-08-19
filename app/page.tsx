@@ -240,39 +240,53 @@ export default function Home() {
           <div style={{ marginTop: 12 }}>
             <button
               onClick={async () => {
-                if (!wallet) return;
+                if (!wallet) { alert('Connect wallet first'); return; }
                 try {
-                  const token = "0x0000000000000000000000000000000000000000"; // replace with real token
-                  const amount = String(tx.amount);
-                  // @ts-ignore - wallet.request typed to accept Rpc messages
-                  const res = await wallet.request({ type: "wallet_addInvokeTransaction", params: { contractAddress: process.env.NEXT_PUBLIC_STRK20_POOL, entrypoint: "shield", calldata: [token, amount, "0"] } });
-                  // eslint-disable-next-line no-console
-                  console.log(res);
-                  alert("Shield transaction prepared (check wallet)");
+                  const token = (document.getElementById('tokenAddress') as HTMLInputElement)?.value || process.env.NEXT_PUBLIC_STRK20_POOL || "0x0000000000000000000000000000000000000000";
+                  const amount = String((document.getElementById('actionAmount') as HTMLInputElement)?.value || tx.amount);
+                  // First approve the pool to move tokens
+                  try {
+                    // @ts-ignore
+                    const apr = await approveToken(wallet, token, process.env.NEXT_PUBLIC_STRK20_POOL || token, amount);
+                    console.log('approve', apr);
+                    alert('Approve submitted; check wallet. Proceeding to shield...');
+                  } catch (aerr) {
+                    console.warn('approve failed or canceled', aerr);
+                    const proceed = confirm('Approve failed or was canceled. Continue to shield anyway?');
+                    if (!proceed) return;
+                  }
+
+                  // Now call shield
+                  // @ts-ignore
+                  const res = await walletShield(wallet, token, amount);
+                  console.log('shield', res);
+                  alert('Shield transaction submitted; check your wallet. Response: ' + JSON.stringify(res));
                 } catch (e) {
-                  // eslint-disable-next-line no-console
                   console.error(e);
-                  alert("Failed to prepare shield");
+                  alert('Failed to execute shield flow: ' + String(e));
                 }
               }}
               className="primary-button"
             >
-              Shield
+              Approve & Shield
             </button>
 
             <button
               onClick={async () => {
-                if (!wallet) return;
+                if (!wallet) { alert('Connect wallet first'); return; }
                 try {
-                  const token = "0x0000000000000000000000000000000000000000";
-                  const amount = String(tx.amount);
+                  const recipient = (document.getElementById('recipient') as HTMLInputElement)?.value || '';
+                  const amount = String((document.getElementById('actionAmount') as HTMLInputElement)?.value || tx.amount);
+                  if (!recipient) { alert('Enter recipient note id or address'); return; }
                   // @ts-ignore
-                  const res = await wallet.request({ type: "wallet_addInvokeTransaction", params: { contractAddress: process.env.NEXT_PUBLIC_STRK20_POOL, entrypoint: "privacy_invoke", calldata: [token, amount] } });
-                  console.log(res);
-                  alert("Private transfer prepared (check wallet)");
+                  const res = await walletPrivateTransfer(wallet, recipient, amount);
+                  console.log('private transfer', res);
+                  const txHash = res?.transaction_hash || res?.tx_hash || res?.hash || null;
+                  if (txHash) alert('Private transfer submitted. TX: ' + txHash);
+                  else alert('Private transfer submitted; check your wallet for details. Response: ' + JSON.stringify(res));
                 } catch (e) {
                   console.error(e);
-                  alert("Failed to prepare private transfer");
+                  alert('Failed to prepare private transfer: ' + String(e));
                 }
               }}
               className="secondary-button"
