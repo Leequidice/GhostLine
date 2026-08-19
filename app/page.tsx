@@ -281,6 +281,51 @@ export default function Home() {
               Private transfer
             </button>
           </div>
+
+          <div style={{ marginTop: 22, borderTop: '1px solid rgba(148,163,184,0.08)', paddingTop: 16 }}>
+            <h4>Deploy privacy_invoke helper (wallet-driven)</h4>
+            <p style={{ color: 'var(--muted)', marginTop: 6 }}>
+              Upload the compiled Sierra JSON and optional CASM/artifact produced by your Cairo toolchain, then declare the class using your connected wallet. After declare, note the returned class hash and deploy via your preferred method.
+            </p>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <input id="sierraFile" type="file" accept="application/json" />
+              <input id="casmFile" type="file" accept="application/json" />
+              <button
+                onClick={async () => {
+                  if (!wallet) { alert('Connect a wallet first'); return; }
+                  // read files
+                  const sierraInput = document.getElementById('sierraFile') as HTMLInputElement;
+                  if (!sierraInput || !sierraInput.files || sierraInput.files.length === 0) { alert('Select a Sierra file'); return; }
+                  const sierraFile = sierraInput.files[0];
+                  const sierraText = await sierraFile.text();
+                  let sierraJson: any;
+                  try { sierraJson = JSON.parse(sierraText); } catch { alert('Sierra file is not valid JSON'); return; }
+
+                  const casmInput = document.getElementById('casmFile') as HTMLInputElement;
+                  let casmJson: any | undefined;
+                  if (casmInput && casmInput.files && casmInput.files.length > 0) {
+                    const casmText = await casmInput.files[0].text();
+                    try { casmJson = JSON.parse(casmText); } catch { alert('CASM file is not valid JSON'); return; }
+                  }
+
+                  try {
+                    const params: any = { contract_class: sierraJson };
+                    if (casmJson) params.casm = casmJson;
+                    // @ts-ignore
+                    const res = await wallet.request({ type: 'wallet_addDeclareTransaction', params });
+                    console.log('declare response', res);
+                    alert('Declare transaction submitted; check your wallet for signing. Response: ' + JSON.stringify(res));
+                  } catch (e) {
+                    console.error(e);
+                    alert('Declare failed: ' + String(e));
+                  }
+                }}
+                className="primary-button"
+              >
+                Declare
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
