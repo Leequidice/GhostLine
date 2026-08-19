@@ -1,74 +1,67 @@
-import type { StarknetWindowObject } from "get-starknet";
+import { compareVersions, RpcProvider, WalletAccountV6, walletV6, type STRK20_ACTION } from "starknet";
+import type { WalletWithStarknetFeatures } from "@starknet-io/get-starknet-wallet-standard-v6/features";
 
-const POOL = process.env.NEXT_PUBLIC_STRK20_POOL ?? "";
-const PROVIDER = process.env.NEXT_PUBLIC_PROVIDER_URL ?? "";
+const MINIMUM_WALLET_API_VERSION = "0.10.3";
 
-async function sendWalletInvoke(wallet: StarknetWindowObject, calls: any[]) {
-  const params = { calls };
-  // @ts-ignore - wallet.request is generic RPC
-  return await wallet.request({ type: "wallet_addInvokeTransaction", params });
-}
+export type PrivacyWalletSession = {
+  account: WalletAccountV6;
+  walletName: string;
+  address: string;
+};
 
-export async function approveToken(wallet: StarknetWindowObject, tokenAddress: string, spender: string, amount: string) {
-  // ERC20 approve(token, spender, amount) - many Starknet ERC20s accept [spender, amount]
-  const calls = [
-    {
-      contract_address: tokenAddress,
-      entry_point: "approve",
-      calldata: [spender, amount],
-    },
-  ];
-  return await sendWalletInvoke(wallet, calls);
-}
-
-export async function walletShield(wallet: StarknetWindowObject, tokenAddress: string, amount: string) {
-  // Shield requires token approved to pool, then call pool.shield
-  const calls = [
-    {
-      contract_address: POOL,
-      entry_point: "shield",
-      calldata: [tokenAddress, amount, "0"],
-    },
-  ];
-  return await sendWalletInvoke(wallet, calls);
-}
-
-export async function walletUnshield(wallet: StarknetWindowObject, tokenAddress: string, amount: string) {
-  const calls = [
-    {
-      contract_address: POOL,
-      entry_point: "unshield",
-      calldata: [tokenAddress, amount, "0"],
-    },
-  ];
-  return await sendWalletInvoke(wallet, calls);
-}
-
-export async function walletPrivateTransfer(wallet: StarknetWindowObject, recipientNoteId: string, amount: string) {
-  const helper = process.env.NEXT_PUBLIC_STRK20_HELPER ?? "";
-  const calls = [
-    {
-      contract_address: helper || POOL,
-      entry_point: "privacy_invoke",
-      calldata: [recipientNoteId, amount],
-    },
-  ];
-  return await sendWalletInvoke(wallet, calls);
-}
-
-export async function pollReceipt(txHash: string, attempts = 20, delayMs = 4000) {
-  if (!PROVIDER) throw new Error("No provider URL set in NEXT_PUBLIC_PROVIDER_URL");
-  const body = (method: string, params: any[]) => JSON.stringify({ jsonrpc: "2.0", id: 1, method, params });
-
-  for (let i = 0; i < attempts; i++) {
-    try {
-      const res = await fetch(PROVIDER, { method: "POST", headers: { "Content-Type": "application/json" }, body: body("starknet_getTransactionReceipt", [txHash]) });
-      const json = await res.json();
-      if (json && json.result) return json.result;
-    } catch (e) {
-      // ignore and retry
-    }
-    await new Promise((r) => setTimeout(r, delayMs));
+function providerUrl() {
+  const url = process.env.NEXT_PUBLIC_PROVIDER_URL;
+  if (!url || url.includes("<YOUR_ALCHEMY_KEY>")) {
+    throw new Error("Set NEXT_PUBLIC_PROVIDER_URL to a Starknet mainnet RPC URL before connecting a privacy wallet.");
   }
-  throw new Error("Receipt not available after polling");
+  return url;
+}
+
+async function discoverWallet(): Promise<WalletWithStarknetFeatures> {
+  const { createStore } = await import("@starknet-io/get-starknet-discovery");
+  const store = createStore();
+  store._refreshInjectedWallets();
+
+  const wallet = await new Promise<WalletWithStarknetFeatures | undefined>((resolve) => {
+    const current = store.getWallets()[0];
+    if (current) {
+      resolve(current as WalletWithStarknetFeatures);
+      return;
+    }
+    const unsubscribe = store.subscribe((wallets) => {
+      const found = wallets[0];
+      if (found) {
+        unsubscribe();
+        resolve(found as WalletWithStarknetFeatures);
+      }
+    });
+    window.setTimeout(() => {
+      unsubscribe();
+      resolve(store.getWallets()[0] as WalletWithStarknetFeatures | undefined);
+    }, 800);
+  });
+
+  if (!wallet) throw new Error("No Starknet wallet was found. Install or enable a privacy-enabled wallet extension, then retry.");
+  return wallet;
+}
+
+export async function connectPrivacyWallet(): Promise<PrivacyWalletSession> {
+  const wallet = await discoverWallet();
+  const versions = await walletV6.supportedWalletApi(wallet);
+  const supported = versions.some((version) => compareVersions(String(version), MINIMUM_WALLET_API_VERSION) >= 0);
+  if (!supported) throw new Error(`This wallet does not support the STRK20 Wallet API ${MINIMUM_WALLET_API_VERSION} or newer.`);
+
+  const account = await WalletAccountV6.connect(new RpcProvider({ nodeUrl: providerUrl() }), wallet);
+  if (!account.address) throw new Error("The wallet did not provide an account address.");
+  return { account, walletName: wallet.name, address: account.address };
+}
+
+export async function shield(account: WalletAccountV6, token: string, amount: string) {
+  const actions: STRK20_ACTION[] = [{ type: "deposit", token, amount }];
+  return account.strk20InvokeTransaction(actions);
+}
+
+export async function privateTransfer(account: WalletAccountV6, token: string, amount: string, recipient: string) {
+  const actions: STRK20_ACTION[] = [{ type: "transfer", token, amount, recipient }];
+  return account.strk20InvokeTransaction(actions);
 }
