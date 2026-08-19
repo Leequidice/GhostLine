@@ -325,6 +325,64 @@ export default function Home() {
                 Declare
               </button>
             </div>
+
+            <div style={{ marginTop: 18 }}>
+              <h4>Deploy instance (wallet-driven)</h4>
+              <p style={{ color: 'var(--muted)', marginTop: 6 }}>
+                After declaring a class, deploy an instance from your wallet. Enter the class hash and optional constructor arguments (space-separated felt/hex values) and click Deploy. If your wallet does not support direct deploy RPC, a CLI command will be shown instead.
+              </p>
+
+              <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
+                <input id="classHash" placeholder="0xCLASS_HASH" style={{ minWidth: 360 }} />
+                <input id="salt" placeholder="salt (optional)" style={{ width: 160 }} />
+                <input id="ctorArgs" placeholder="constructor args (space-separated)" style={{ flex: 1 }} />
+                <button
+                    onClick={async () => {
+                      if (!wallet) { alert('Connect wallet first'); return; }
+                      const classHashEl = document.getElementById('classHash') as HTMLInputElement;
+                      const saltEl = document.getElementById('salt') as HTMLInputElement;
+                      const ctorEl = document.getElementById('ctorArgs') as HTMLInputElement;
+                      const classHash = (classHashEl?.value || '').trim();
+                      if (!classHash) { alert('Enter class hash'); return; }
+                      const salt = (saltEl?.value || '').trim() || '0';
+                      const ctorArgs = (ctorEl?.value || '').trim() ? ctorEl.value.split(/\s+/) : [];
+
+                      // Build CLI fallback
+                      const cliCmd = `starknet deploy --class-hash ${classHash} --salt ${salt} ${ctorArgs.length ? '--constructor-args ' + ctorArgs.join(' '): ''}`;
+
+                      try {
+                        // Try wallet RPC deploy — wallets differ; attempt a deploy-style invoke and catch failures.
+                        // @ts-ignore
+                        const params: any = {
+                          calls: [
+                            {
+                              contract_address: '0x0',
+                              entry_point: 'deploy',
+                              calldata: [classHash, salt, ...ctorArgs],
+                            },
+                          ],
+                        };
+                        // @ts-ignore
+                        const res = await wallet.request({ type: 'wallet_addInvokeTransaction', params });
+                        console.log('deploy response', res);
+                        alert('Deploy transaction submitted. Wallet response: ' + JSON.stringify(res));
+                      } catch (err) {
+                        console.error('wallet deploy failed', err);
+                        // Show the CLI fallback
+                        const picked = confirm('Wallet deploy failed or is unsupported. Show CLI deploy command instead?');
+                        if (picked) {
+                          // copy to clipboard if available
+                          try { await navigator.clipboard.writeText(cliCmd); alert('CLI command copied to clipboard:\n' + cliCmd); }
+                          catch { alert('CLI command:\n' + cliCmd); }
+                        }
+                      }
+                    }}
+                    className="primary-button"
+                >
+                    Deploy
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </section>
