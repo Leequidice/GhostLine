@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { connect, disconnect, type StarknetWindowObject } from "get-starknet";
+import { useMemo, useState, type CSSProperties } from "react";
+import type { WalletAccountV6 } from "starknet";
 import { analyzeTransaction, type TxInput } from "../lib/privacy";
+import { connectPrivacyWallet, privateTransfer, shield } from "../lib/strk20";
 
 const initialState: TxInput = {
   amount: "5000",
@@ -15,41 +16,13 @@ const initialState: TxInput = {
 
 export default function Home() {
   const [tx, setTx] = useState<TxInput>(initialState);
-  const [wallet, setWallet] = useState<StarknetWindowObject | null>(null);
+  const [wallet, setWallet] = useState<WalletAccountV6 | null>(null);
   const [walletStatus, setWalletStatus] = useState<string>("Wallet not connected");
   const [walletAddress, setWalletAddress] = useState<string>("Not connected");
+  const [tokenAddress, setTokenAddress] = useState("");
+  const [recipient, setRecipient] = useState("");
+  const [actionStatus, setActionStatus] = useState("");
   const analysis = useMemo(() => analyzeTransaction(tx), [tx]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const handleWalletEvent = async () => {
-      const current = (window as any).starknetLastSelectedWallet ?? null;
-      setWallet(current);
-      if (current) {
-        try {
-          const accounts = await current.request({ type: "wallet_requestAccounts" });
-          setWalletAddress(accounts[0] ?? "Connected");
-          setWalletStatus(`${current.name ?? "Wallet"} connected`);
-        } catch {
-          setWalletAddress("Connected");
-          setWalletStatus(`${current.name ?? "Wallet"} connected`);
-        }
-      } else {
-        setWalletAddress("Not connected");
-        setWalletStatus("Wallet not connected");
-      }
-    };
-
-    handleWalletEvent();
-    window.addEventListener("starknet-wallet-disconnected", handleWalletEvent);
-    window.addEventListener("starknet-wallet-connected", handleWalletEvent);
-
-    return () => {
-      window.removeEventListener("starknet-wallet-disconnected", handleWalletEvent);
-      window.removeEventListener("starknet-wallet-connected", handleWalletEvent);
-    };
-  }, []);
 
   const handleChange = <K extends keyof TxInput>(key: K, value: TxInput[K]) => {
     setTx((prev) => ({ ...prev, [key]: value }));
@@ -57,30 +30,20 @@ export default function Home() {
 
   const handleConnect = async () => {
     try {
-      const selected = await connect({ modalMode: "alwaysAsk", modalTheme: "dark" });
-
-      if (!selected) {
-        setWalletStatus("Wallet connection cancelled");
-        return;
-      }
-
-      const accounts = await selected.request({ type: "wallet_requestAccounts" });
-      setWallet(selected);
-      setWalletAddress(accounts[0] ?? "Connected");
-      setWalletStatus(`${selected.name ?? "Wallet"} connected`);
-    } catch {
-      setWalletStatus("Wallet connection failed");
+      const session = await connectPrivacyWallet();
+      setWallet(session.account);
+      setWalletAddress(session.address);
+      setWalletStatus(`${session.walletName} connected and STRK20-ready`);
+    } catch (error) {
+      setWalletStatus(error instanceof Error ? error.message : "Wallet connection failed");
     }
   };
 
   const handleDisconnect = async () => {
-    try {
-      await disconnect();
-    } finally {
-      setWallet(null);
-      setWalletAddress("Not connected");
-      setWalletStatus("Wallet disconnected");
-    }
+    setWallet(null);
+    setWalletAddress("Not connected");
+    setWalletStatus("Wallet disconnected");
+    setActionStatus("");
   };
 
   const network = process.env.NEXT_PUBLIC_CHAIN_ID ?? "SN_MAIN";
@@ -225,68 +188,46 @@ export default function Home() {
           <div className="grid">
             <div className="field">
               <label htmlFor="tokenAddress">Token address</label>
-              <input id="tokenAddress" value={tx.amount /* placeholder, replaced below by state */} readOnly />
+              <input id="tokenAddress" value={tokenAddress} onChange={(event) => setTokenAddress(event.target.value)} placeholder="0x token address" />
             </div>
             <div className="field">
               <label htmlFor="recipient">Recipient (note id or address)</label>
-              <input id="recipient" value={""} onChange={() => {}} placeholder="0x... or note id" />
+              <input id="recipient" value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="Registered recipient address" />
             </div>
             <div className="field">
               <label htmlFor="actionAmount">Amount</label>
-              <input id="actionAmount" type="number" defaultValue={tx.amount} />
+              <input id="actionAmount" type="number" value={tx.amount} onChange={(event) => handleChange("amount", event.target.value)} />
             </div>
           </div>
 
           <div style={{ marginTop: 12 }}>
             <button
               onClick={async () => {
-                if (!wallet) { alert('Connect wallet first'); return; }
+                if (!wallet || !tokenAddress || !tx.amount) { setActionStatus("Connect a STRK20-capable wallet and enter a token address and amount first."); return; }
                 try {
-                  const token = (document.getElementById('tokenAddress') as HTMLInputElement)?.value || process.env.NEXT_PUBLIC_STRK20_POOL || "0x0000000000000000000000000000000000000000";
-                  const amount = String((document.getElementById('actionAmount') as HTMLInputElement)?.value || tx.amount);
-                  // First approve the pool to move tokens
-                  try {
-                    // @ts-ignore
-                    const apr = await approveToken(wallet, token, process.env.NEXT_PUBLIC_STRK20_POOL || token, amount);
-                    console.log('approve', apr);
-                    alert('Approve submitted; check wallet. Proceeding to shield...');
-                  } catch (aerr) {
-                    console.warn('approve failed or canceled', aerr);
-                    const proceed = confirm('Approve failed or was canceled. Continue to shield anyway?');
-                    if (!proceed) return;
-                  }
-
-                  // Now call shield
-                  // @ts-ignore
-                  const res = await walletShield(wallet, token, amount);
-                  console.log('shield', res);
-                  alert('Shield transaction submitted; check your wallet. Response: ' + JSON.stringify(res));
+                  setActionStatus("Requesting private deposit from your wallet. It will request approval and then the STRK20 deposit.");
+                  const res = await shield(wallet, tokenAddress, tx.amount);
+                  setActionStatus(`Shield transaction submitted: ${res.transaction_hash}`);
                 } catch (e) {
                   console.error(e);
-                  alert('Failed to execute shield flow: ' + String(e));
+                  setActionStatus(`Shield request failed: ${String(e)}`);
                 }
               }}
               className="primary-button"
             >
-              Approve & Shield
+              Shield with wallet
             </button>
 
             <button
               onClick={async () => {
-                if (!wallet) { alert('Connect wallet first'); return; }
+                if (!wallet || !tokenAddress || !recipient || !tx.amount) { setActionStatus("Connect a STRK20-capable wallet and enter a token, registered recipient, and amount first."); return; }
                 try {
-                  const recipient = (document.getElementById('recipient') as HTMLInputElement)?.value || '';
-                  const amount = String((document.getElementById('actionAmount') as HTMLInputElement)?.value || tx.amount);
-                  if (!recipient) { alert('Enter recipient note id or address'); return; }
-                  // @ts-ignore
-                  const res = await walletPrivateTransfer(wallet, recipient, amount);
-                  console.log('private transfer', res);
-                  const txHash = res?.transaction_hash || res?.tx_hash || res?.hash || null;
-                  if (txHash) alert('Private transfer submitted. TX: ' + txHash);
-                  else alert('Private transfer submitted; check your wallet for details. Response: ' + JSON.stringify(res));
+                  setActionStatus("Requesting private transfer from your wallet.");
+                  const res = await privateTransfer(wallet, tokenAddress, tx.amount, recipient);
+                  setActionStatus(`Private transfer submitted: ${res.transaction_hash}`);
                 } catch (e) {
                   console.error(e);
-                  alert('Failed to prepare private transfer: ' + String(e));
+                  setActionStatus(`Private transfer request failed: ${String(e)}`);
                 }
               }}
               className="secondary-button"
@@ -296,8 +237,12 @@ export default function Home() {
             </button>
           </div>
 
-          <div style={{ marginTop: 22, borderTop: '1px solid rgba(148,163,184,0.08)', paddingTop: 16 }}>
-            <h4>Deploy privacy_invoke helper (wallet-driven)</h4>
+          <p style={{ color: 'var(--muted)', marginTop: 14 }}>
+            {actionStatus || "Shielding is public and requires an ERC-20 approval before the private deposit. Private transfers require a recipient already registered with the privacy pool."}
+          </p>
+
+          <div hidden aria-hidden="true" style={{ marginTop: 22, borderTop: '1px solid rgba(148,163,184,0.08)', paddingTop: 16 }}>
+            <h4>Disabled legacy helper deployment controls</h4>
             <p style={{ color: 'var(--muted)', marginTop: 6 }}>
               Upload the compiled Sierra JSON and optional CASM/artifact produced by your Cairo toolchain, then declare the class using your connected wallet. After declare, note the returned class hash and deploy via your preferred method.
             </p>
