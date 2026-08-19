@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { connect, disconnect, type StarknetWindowObject } from "get-starknet";
 import { analyzeTransaction, type TxInput } from "../lib/privacy";
+import { approveToken, walletPrivateTransfer, walletShield } from "../lib/strk20";
 
 const initialState: TxInput = {
   amount: "5000",
@@ -281,7 +282,7 @@ export default function Home() {
                   // @ts-ignore
                   const res = await walletPrivateTransfer(wallet, recipient, amount);
                   console.log('private transfer', res);
-                  const txHash = res?.transaction_hash || res?.tx_hash || res?.hash || null;
+                  const txHash = res?.transaction_hash ?? null;
                   if (txHash) alert('Private transfer submitted. TX: ' + txHash);
                   else alert('Private transfer submitted; check your wallet for details. Response: ' + JSON.stringify(res));
                 } catch (e) {
