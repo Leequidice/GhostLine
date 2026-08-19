@@ -15,16 +15,34 @@ jobs:
       - name: Ensure Docker available
         run: docker --version
 
-      - name: Pull Cairo image (try GHCR first, then Docker Hub fallback)
+      - name: Pull Cairo image (try multiple images and fallback)
         id: pull
         run: |
           set -e
-          IMAGE=ghcr.io/starkware-libs/cairo:1.0.0
-          echo "Trying to pull $IMAGE"
-          if ! docker pull $IMAGE; then
-            IMAGE=nethermindlabs/cairo-1:latest
-            echo "Falling back to $IMAGE"
-            docker pull $IMAGE
+          IMAGES=(
+            "ghcr.io/starkware-libs/cairo:1.0.0"
+            "nethermindlabs/cairo-1:latest"
+            "xethlyx/cairo:1.1"
+            "xethlyx/cairo:1.0"
+            "cairolang/cairo:1.0.0"
+          )
+          IMAGE=""
+          for IMG in "${IMAGES[@]}"; do
+            echo "Trying to pull $IMG"
+            if docker pull "$IMG"; then
+              IMAGE="$IMG"
+              echo "Pulled $IMG"
+              break
+            else
+              echo "Failed to pull $IMG"
+            fi
+          done
+          if [ -z "$IMAGE" ]; then
+            echo "No Docker image could be pulled. Exiting with helpful diagnostics."
+            docker version || true
+            echo "List local images:" && docker images || true
+            echo "Run this workflow again after ensuring your runner can pull container images." >&2
+            exit 1
           fi
           echo "IMAGE=$IMAGE" >> $GITHUB_OUTPUT
 
@@ -32,8 +50,9 @@ jobs:
         run: |
           set -e
           IMAGE=${{ steps.pull.outputs.IMAGE }}
+          echo "Compiling using image: $IMAGE"
           mkdir -p cairo_build
-          docker run --rm -v "${{ github.workspace }}/cairo/src:/workspace/cairo/src" -v "${{ github.workspace }}/cairo_build:/out" $IMAGE bash -lc 'for f in /workspace/cairo/src/*.cairo; do fname=$(basename "$f" .cairo); echo Compiling $f; cairo-compile "$f" --output "/out/$fname.sierra.json" || exit 2; cairo-compile "$f" --output "/out/$fname.casm.json" --casm || true; done'
+          docker run --rm -v "${{ github.workspace }}/cairo/src:/workspace/cairo/src" -v "${{ github.workspace }}/cairo_build:/out" "$IMAGE" bash -lc 'for f in /workspace/cairo/src/*.cairo; do fname=$(basename "$f" .cairo); echo Compiling $f; cairo-compile "$f" --output "/out/$fname.sierra.json" || { echo "cairo-compile failed for $f"; exit 2; }; cairo-compile "$f" --output "/out/$fname.casm.json" --casm || true; done'
 
       - name: List built artifacts
         run: ls -la cairo_build || true
