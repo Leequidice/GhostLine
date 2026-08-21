@@ -14,9 +14,7 @@ function validateAddress(value: string, label: string) {
   if (!/^0x[0-9a-fA-F]{1,64}$/.test(address)) {
     throw new Error(`${label} must be a Starknet contract address beginning with 0x.`);
   }
-  try {
-    if (BigInt(address) === 0n) throw new Error();
-  } catch {
+  if (/^0x0+$/i.test(address)) {
     throw new Error(`${label} must be a valid non-zero Starknet address.`);
   }
   return address;
