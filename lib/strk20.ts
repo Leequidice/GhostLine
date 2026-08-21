@@ -25,7 +25,9 @@ function validateAmount(value: string) {
   if (!/^[1-9]\d*$/.test(amount)) {
     throw new Error("Amount must be a positive whole number in the token's smallest unit (no decimal point).");
   }
-  return amount;
+  // Ready expects a felt encoded as hexadecimal for STRK20 actions. The UI uses
+  // decimal base units so users can enter token quantities unambiguously.
+  return `0x${BigInt(amount).toString(16)}`;
 }
 
 function providerUrl() {
