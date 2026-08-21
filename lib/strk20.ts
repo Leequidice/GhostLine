@@ -20,14 +20,24 @@ function validateAddress(value: string, label: string) {
   return address;
 }
 
-function validateAmount(value: string) {
+function tokenAmountToFelt(value: string, decimals: number) {
   const amount = value.trim();
-  if (!/^[1-9]\d*$/.test(amount)) {
-    throw new Error("Amount must be a positive whole number in the token's smallest unit (no decimal point).");
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 255) {
+    throw new Error("Token decimals must be a whole number between 0 and 255.");
   }
-  // Ready expects a felt encoded as hexadecimal for STRK20 actions. The UI uses
-  // decimal base units so users can enter token quantities unambiguously.
-  return `0x${BigInt(amount).toString(16)}`;
+  if (!/^\d+(?:\.\d+)?$/.test(amount)) {
+    throw new Error("Amount must be a positive decimal number.");
+  }
+
+  const [whole, fraction = ""] = amount.split(".");
+  if (fraction.length > decimals) {
+    throw new Error(`This token supports at most ${decimals} decimal places.`);
+  }
+  const baseUnits = `${whole}${fraction.padEnd(decimals, "0")}`.replace(/^0+/, "") || "0";
+  if (baseUnits === "0") throw new Error("Amount must be greater than zero.");
+
+  // Ready expects a felt encoded as hexadecimal for STRK20 actions.
+  return `0x${BigInt(baseUnits).toString(16)}`;
 }
 
 function providerUrl() {
@@ -97,16 +107,16 @@ export async function connectPrivacyWallet(): Promise<PrivacyWalletSession> {
   throw new Error(message);
 }
 
-export async function shield(account: WalletAccountV6, token: string, amount: string) {
-  const actions: STRK20_ACTION[] = [{ type: "deposit", token: validateAddress(token, "Token address"), amount: validateAmount(amount) }];
+export async function shield(account: WalletAccountV6, token: string, amount: string, decimals: number) {
+  const actions: STRK20_ACTION[] = [{ type: "deposit", token: validateAddress(token, "Token address"), amount: tokenAmountToFelt(amount, decimals) }];
   return account.strk20InvokeTransaction(actions);
 }
 
-export async function privateTransfer(account: WalletAccountV6, token: string, amount: string, recipient: string) {
+export async function privateTransfer(account: WalletAccountV6, token: string, amount: string, recipient: string, decimals: number) {
   const actions: STRK20_ACTION[] = [{
     type: "transfer",
     token: validateAddress(token, "Token address"),
-    amount: validateAmount(amount),
+    amount: tokenAmountToFelt(amount, decimals),
     recipient: validateAddress(recipient, "Recipient"),
   }];
   return account.strk20InvokeTransaction(actions);
