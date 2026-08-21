@@ -21,6 +21,8 @@ export default function Home() {
   const [walletAddress, setWalletAddress] = useState<string>("Not connected");
   const [tokenAddress, setTokenAddress] = useState("");
   const [recipient, setRecipient] = useState("");
+  const [actionAmount, setActionAmount] = useState("10");
+  const [tokenDecimals, setTokenDecimals] = useState("18");
   const [actionStatus, setActionStatus] = useState("");
   const analysis = useMemo(() => analyzeTransaction(tx), [tx]);
 
@@ -42,6 +44,18 @@ export default function Home() {
           : message,
       );
     }
+  };
+
+  const actionError = (error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    return /INVALID_REQUEST_PAYLOAD/i.test(message)
+      ? "The wallet rejected the request payload. Use a supported Starknet Mainnet token contract address and a positive whole-number amount in its smallest unit."
+      : message;
+  };
+
+  const useStrk = () => {
+    setTokenAddress("0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d");
+    setTokenDecimals("18");
   };
 
   const handleDisconnect = async () => {
@@ -193,29 +207,34 @@ export default function Home() {
           <div className="grid">
             <div className="field">
               <label htmlFor="tokenAddress">Token address</label>
-              <input id="tokenAddress" value={tokenAddress} onChange={(event) => setTokenAddress(event.target.value)} placeholder="0x token address" />
+              <input id="tokenAddress" value={tokenAddress} onChange={(event) => setTokenAddress(event.target.value)} placeholder="Supported 0x token contract address" spellCheck={false} />
+              <button type="button" onClick={useStrk} className="secondary-button" style={{ marginTop: 8 }}>Use STRK</button>
             </div>
             <div className="field">
               <label htmlFor="recipient">Recipient (note id or address)</label>
               <input id="recipient" value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="Registered recipient address" />
             </div>
             <div className="field">
-              <label htmlFor="actionAmount">Amount</label>
-              <input id="actionAmount" type="number" value={tx.amount} onChange={(event) => handleChange("amount", event.target.value)} />
+              <label htmlFor="actionAmount">Amount to shield</label>
+              <input id="actionAmount" inputMode="decimal" value={actionAmount} onChange={(event) => setActionAmount(event.target.value)} placeholder="10" />
+            </div>
+            <div className="field">
+              <label htmlFor="tokenDecimals">Token decimals</label>
+              <input id="tokenDecimals" inputMode="numeric" pattern="[0-9]*" value={tokenDecimals} onChange={(event) => setTokenDecimals(event.target.value)} placeholder="18 for STRK" />
             </div>
           </div>
 
           <div style={{ marginTop: 12 }}>
             <button
               onClick={async () => {
-                if (!wallet || !tokenAddress || !tx.amount) { setActionStatus("Connect a STRK20-capable wallet and enter a token address and amount first."); return; }
+                if (!wallet || !tokenAddress || !actionAmount) { setActionStatus("Connect a STRK20-capable wallet and enter a token address and amount first."); return; }
                 try {
                   setActionStatus("Requesting private deposit from your wallet. It will request approval and then the STRK20 deposit.");
-                  const res = await shield(wallet, tokenAddress, tx.amount);
+                  const res = await shield(wallet, tokenAddress, actionAmount, Number(tokenDecimals));
                   setActionStatus(`Shield transaction submitted: ${res.transaction_hash}`);
                 } catch (e) {
                   console.error(e);
-                  setActionStatus(`Shield request failed: ${String(e)}`);
+                  setActionStatus(`Shield request failed: ${actionError(e)}`);
                 }
               }}
               className="primary-button"
@@ -225,14 +244,14 @@ export default function Home() {
 
             <button
               onClick={async () => {
-                if (!wallet || !tokenAddress || !recipient || !tx.amount) { setActionStatus("Connect a STRK20-capable wallet and enter a token, registered recipient, and amount first."); return; }
+                if (!wallet || !tokenAddress || !recipient || !actionAmount) { setActionStatus("Connect a STRK20-capable wallet and enter a token, registered recipient, and amount first."); return; }
                 try {
                   setActionStatus("Requesting private transfer from your wallet.");
-                  const res = await privateTransfer(wallet, tokenAddress, tx.amount, recipient);
+                  const res = await privateTransfer(wallet, tokenAddress, actionAmount, recipient, Number(tokenDecimals));
                   setActionStatus(`Private transfer submitted: ${res.transaction_hash}`);
                 } catch (e) {
                   console.error(e);
-                  setActionStatus(`Private transfer request failed: ${String(e)}`);
+                  setActionStatus(`Private transfer request failed: ${actionError(e)}`);
                 }
               }}
               className="secondary-button"
@@ -243,7 +262,7 @@ export default function Home() {
           </div>
 
           <p style={{ color: 'var(--muted)', marginTop: 14 }}>
-            {actionStatus || "Shielding is public and requires an ERC-20 approval before the private deposit. Private transfers require a recipient already registered with the privacy pool."}
+            {actionStatus || "Shielding is public and requires an ERC-20 approval before the private deposit. Enter the human amount you want to shield; GhostLine converts it using the token decimals and sends Ready the required felt format. Private transfers require a recipient already registered with the privacy pool."}
           </p>
 
           <div hidden aria-hidden="true" style={{ marginTop: 22, borderTop: '1px solid rgba(148,163,184,0.08)', paddingTop: 16 }}>
