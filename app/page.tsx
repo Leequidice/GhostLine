@@ -35,7 +35,12 @@ export default function Home() {
       setWalletAddress(session.address);
       setWalletStatus(`${session.walletName} connected and STRK20-ready`);
     } catch (error) {
-      setWalletStatus(error instanceof Error ? error.message : "Wallet connection failed");
+      const message = error instanceof Error ? error.message : "Wallet connection failed";
+      setWalletStatus(
+        /not implemented/i.test(message)
+          ? "This wallet does not implement the STRK20 Wallet API yet. Use a privacy-enabled wallet, then reconnect."
+          : message,
+      );
     }
   };
 
