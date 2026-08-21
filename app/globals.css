@@ -95,10 +95,17 @@ h1 {
 }
 .primary-button,
 .secondary-button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
   border: none;
   border-radius: 12px;
   padding: 12px 16px;
   cursor: pointer;
+  opacity: 1;
+  visibility: visible;
   transition: transform 0.15s ease, opacity 0.15s ease;
 }
 .primary-button {
@@ -114,6 +121,11 @@ h1 {
 .primary-button:hover,
 .secondary-button:hover {
   transform: translateY(-1px);
+}
+.primary-button:focus-visible,
+.secondary-button:focus-visible {
+  outline: 3px solid rgba(103, 232, 249, 0.65);
+  outline-offset: 3px;
 }
 .score-card {
   display: grid;
