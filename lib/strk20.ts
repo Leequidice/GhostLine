@@ -9,6 +9,27 @@ export type PrivacyWalletSession = {
   address: string;
 };
 
+function validateAddress(value: string, label: string) {
+  const address = value.trim();
+  if (!/^0x[0-9a-fA-F]{1,64}$/.test(address)) {
+    throw new Error(`${label} must be a Starknet contract address beginning with 0x.`);
+  }
+  try {
+    if (BigInt(address) === 0n) throw new Error();
+  } catch {
+    throw new Error(`${label} must be a valid non-zero Starknet address.`);
+  }
+  return address;
+}
+
+function validateAmount(value: string) {
+  const amount = value.trim();
+  if (!/^[1-9]\d*$/.test(amount)) {
+    throw new Error("Amount must be a positive whole number in the token's smallest unit (no decimal point).");
+  }
+  return amount;
+}
+
 function providerUrl() {
   const url = process.env.NEXT_PUBLIC_PROVIDER_URL;
   if (!url || url.includes("<YOUR_ALCHEMY_KEY>")) {
@@ -77,11 +98,16 @@ export async function connectPrivacyWallet(): Promise<PrivacyWalletSession> {
 }
 
 export async function shield(account: WalletAccountV6, token: string, amount: string) {
-  const actions: STRK20_ACTION[] = [{ type: "deposit", token, amount }];
+  const actions: STRK20_ACTION[] = [{ type: "deposit", token: validateAddress(token, "Token address"), amount: validateAmount(amount) }];
   return account.strk20InvokeTransaction(actions);
 }
 
 export async function privateTransfer(account: WalletAccountV6, token: string, amount: string, recipient: string) {
-  const actions: STRK20_ACTION[] = [{ type: "transfer", token, amount, recipient }];
+  const actions: STRK20_ACTION[] = [{
+    type: "transfer",
+    token: validateAddress(token, "Token address"),
+    amount: validateAmount(amount),
+    recipient: validateAddress(recipient, "Recipient"),
+  }];
   return account.strk20InvokeTransaction(actions);
 }
