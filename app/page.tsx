@@ -3,7 +3,7 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import type { WalletAccountV6 } from "starknet";
 import { analyzeTransaction, type TxInput } from "../lib/privacy";
-import { connectPrivacyWallet, privateTransfer, shield } from "../lib/strk20";
+import { connectPrivacyWallet, privateTransfer, privateYieldDeposit, shield } from "../lib/strk20";
 
 const initialState: TxInput = {
   amount: "5000",
@@ -23,6 +23,7 @@ export default function Home() {
   const [recipient, setRecipient] = useState("");
   const [actionAmount, setActionAmount] = useState("10");
   const [tokenDecimals, setTokenDecimals] = useState("18");
+  const [yieldVault, setYieldVault] = useState("");
   const [actionStatus, setActionStatus] = useState("");
   const analysis = useMemo(() => analyzeTransaction(tx), [tx]);
 
@@ -66,6 +67,7 @@ export default function Home() {
   };
 
   const network = process.env.NEXT_PUBLIC_CHAIN_ID ?? "SN_MAIN";
+  const yieldHelper = process.env.NEXT_PUBLIC_GHOSTLINE_YIELD_HELPER ?? "";
 
   const ringStyle: CSSProperties = {
     ["--value" as any]: `${analysis.score * 3.6}deg`,
@@ -367,6 +369,51 @@ export default function Home() {
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="actions-panel">
+        <div className="panel">
+          <h3>GhostLine Private Yield Vault</h3>
+          <p style={{ color: "var(--muted)", marginTop: 0 }}>
+            Convert a shielded position into private Vesu vault shares. The helper measures the real minted-share delta and returns it to your private open note.
+          </p>
+          <div className="grid">
+            <div className="field">
+              <label htmlFor="yieldVault">Approved Vesu vault (vToken)</label>
+              <input id="yieldVault" value={yieldVault} onChange={(event) => setYieldVault(event.target.value)} placeholder="Vesu vToken address" spellCheck={false} />
+            </div>
+            <div className="field">
+              <label>GhostLine helper</label>
+              <input value={yieldHelper || "Deploy helper to enable"} readOnly />
+            </div>
+          </div>
+          <button
+            className="primary-button"
+            style={{ marginTop: 12 }}
+            disabled={!yieldHelper}
+            onClick={async () => {
+              if (!wallet || !tokenAddress || !yieldVault || !actionAmount) {
+                setActionStatus("Connect a privacy wallet and enter the underlying token, Vesu vault, and amount first.");
+                return;
+              }
+              try {
+                setActionStatus("Preparing private yield deposit. Ready will prove the action and return Vesu shares to an open note.");
+                const res = await privateYieldDeposit(wallet, yieldHelper, tokenAddress, yieldVault, actionAmount, Number(tokenDecimals));
+                setActionStatus(`Private yield deposit submitted: ${res.transaction_hash}`);
+              } catch (error) {
+                console.error(error);
+                setActionStatus(`Private yield deposit failed: ${actionError(error)}`);
+              }
+            }}
+          >
+            Deposit privately into Vesu
+          </button>
+          <p style={{ color: "var(--muted)", marginTop: 14 }}>
+            {yieldHelper
+              ? "Use only a reviewed Vesu vToken. This is experimental mainnet software."
+              : "Disabled until GhostLine’s reviewed helper is deployed and configured."}
+          </p>
         </div>
       </section>
 

@@ -1,5 +1,11 @@
 # GhostLine
 
+## Private Yield Vault (experimental)
+
+GhostLine can route a shielded ERC-20 position into a reviewed Vesu ERC-4626 vault and return the minted vToken shares to a new private note. The Cairo 2 helper measures the actual share balance delta, so the private output is based on what the vault minted rather than a user-supplied value.
+
+The helper is not deployed yet. Build and mainnet safety requirements are documented in [DEPLOY_HELPER.md](DEPLOY_HELPER.md); set `NEXT_PUBLIC_GHOSTLINE_YIELD_HELPER` only after an independent review and an explicit mainnet deployment.
+
 > **A privacy firewall that detects transaction leakage before you sign on Starknet.**
 
 Ghostline is a privacy-security layer for **Starknet** that analyzes transactions before execution, identifies potential privacy leakage, explains the risks, and recommends safer ways to transact.

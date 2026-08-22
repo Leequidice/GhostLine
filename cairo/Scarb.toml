@@ -1,0 +1,15 @@
+[package]
+name = "ghostline_yield_anonymizer"
+version = "0.1.0"
+edition = "2024_07"
+description = "GhostLine private Vesu yield helper for STRK20"
+
+[dependencies]
+starknet = "2.19.4"
+
+[lib]
+casm = true
+
+[[target.starknet-contract]]
+sierra = true
+casm = true
