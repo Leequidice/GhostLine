@@ -6,6 +6,8 @@ GhostLine can route a shielded ERC-20 position into a reviewed Vesu ERC-4626 vau
 
 The helper is not deployed yet. Build and mainnet safety requirements are documented in [DEPLOY_HELPER.md](DEPLOY_HELPER.md); set `NEXT_PUBLIC_GHOSTLINE_YIELD_HELPER` only after an independent review and an explicit mainnet deployment.
 
+The first prefilled route is the Vesu Genesis Pool STRK market. Its STRK underlying and vSTRK addresses are taken from Vesu's official [`pools_sn_mainnet.json`](https://github.com/vesuxyz/changelog/blob/main/pools_sn_mainnet.json). Other vault addresses remain manual and should be independently verified before use.
+
 > **A privacy firewall that detects transaction leakage before you sign on Starknet.**
 
 Ghostline is a privacy-security layer for **Starknet** that analyzes transactions before execution, identifies potential privacy leakage, explains the risks, and recommends safer ways to transact.
