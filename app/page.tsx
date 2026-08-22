@@ -14,6 +14,13 @@ const initialState: TxInput = {
   shielded: true,
 };
 
+// Vesu's official `pools_sn_mainnet.json`: Genesis Pool STRK market.
+const VESU_GENESIS_STRK = {
+  underlying: "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
+  vault: "0x037ae3f583c8d644b7556c93a04b83b52fa96159b2b0cbd83c14d3122aef80a2",
+  decimals: "18",
+};
+
 export default function Home() {
   const [tx, setTx] = useState<TxInput>(initialState);
   const [wallet, setWallet] = useState<WalletAccountV6 | null>(null);
@@ -396,6 +403,18 @@ export default function Home() {
               <input value={yieldHelper || "Deploy helper to enable"} readOnly />
             </div>
           </div>
+          <button
+            className="secondary-button"
+            style={{ marginTop: 12 }}
+            onClick={() => {
+              setTokenAddress(VESU_GENESIS_STRK.underlying);
+              setTokenDecimals(VESU_GENESIS_STRK.decimals);
+              setYieldVault(VESU_GENESIS_STRK.vault);
+              setActionStatus("Vesu Genesis STRK market selected. Enter the amount, then check the route before submitting.");
+            }}
+          >
+            Use verified Vesu Genesis STRK vault
+          </button>
           <button
             className="primary-button"
             style={{ marginTop: 12 }}
