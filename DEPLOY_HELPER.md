@@ -1,71 +1,36 @@
-Deploying the privacy_invoke helper (guide)
+# GhostLine Private Yield Vault deployment
 
-This file explains how to compile and deploy the Cairo helper stub in this
-repository. Two deployment methods are described:
+`cairo/src/lib.cairo` is a stateless STRK20 `privacy_invoke` helper for ERC-4626-compatible Vesu vaults. On deposit, it receives a private underlying-token withdrawal from the STRK20 pool, deposits that amount in the supplied vault, measures the resulting vToken balance delta, and approves the pool to place those shares in the user's open note.
 
-- Local CLI (recommended for developers): use the Cairo/starknet toolchain to
-  compile and declare/deploy the contract. Requires Cairo + Starknet CLI.
+It does not custody funds between calls and has no owner. `privacy_invoke` is intentionally callable by the STRK20 flow, so the helper must never be pre-funded or used outside its atomic pool transaction. It is nevertheless experimental code: do not deploy or use it with meaningful mainnet value without an independent Cairo/security review and a confirmed Vesu vToken address.
 
-- Wallet-driven deploy (safer for not sharing keys): construct declare/deploy
-  payloads and have the connected wallet sign & submit them via the Wallet API.
+## Build
 
-1) Compile (Cairo 1.x / Starknet tooling)
+Install [Scarb](https://docs.swmansion.com/scarb/) 2.19.4, then run from the repository root:
 
-# Install Cairo & Starknet dev tools (follow official docs)
-# Example (local machine):
-# cairo-compile cairo/src/lib.cairo --output build/lib.sierra
-# cairo-compile cairo/src/lib.cairo --output build/lib.casm --check
-# (commands depend on your installed Cairo toolchain)
-
-2) Declare + Deploy with Starknet CLI
-
-# Example (placeholder — adapt to your toolchain):
-# starknet declare --contract build/lib.sierra --network $NETWORK
-# starknet deploy --class-hash <CLASS_HASH> --network $NETWORK --account-address <ADDRESS>
-
-3) Deploying via a connected wallet (browser)
-
-# This repository includes client helpers that use the Wallet API. The wallet
-# supports these RPC messages (see node_modules/@starknet-io/types-js):
-#  - wallet_addDeclareTransaction
-#  - wallet_addInvokeTransaction
-#
-# Example sketch using get-starknet in the browser to declare & deploy:
-
-```js
-import { connect } from 'get-starknet';
-
-async function declareAndDeploy(compiledSierra, compiledCasm) {
-  const wallet = await connect({ modalMode: 'alwaysAsk' });
-  if (!wallet) throw new Error('wallet not found');
-
-  // Declare the sierra class
-  const declareTx = await wallet.request({
-    type: 'wallet_addDeclareTransaction',
-    params: {
-      contract_class: compiledSierra, // replace with compiled JSON/obj
-      casm: compiledCasm, // if required by your toolchain
-    }
-  });
-
-  // After the wallet processes the declare, it returns a class hash. Use it
-  // to deploy the contract (this step may be combined depending on wallet).
-}
+```powershell
+Set-Location cairo
+scarb fmt --check
+scarb build
 ```
 
-Notes & Safety
-- The included Cairo code is a placeholder and must be reviewed and replaced
-  before any mainnet usage.
-- Deploying and running helper contracts on mainnet involves gas and real
-  funds. Test thoroughly on a testnet (Sepolia or a devnet) first.
-- If you want, I can add a deploy script that:
-  - Compiles using a Docker-based Cairo image (so you don't install Cairo),
-  - Produces the artifacts required by wallets or the CLI,
-  - Optionally uses a private key (env) to do a programmatic deploy (I will
-    provide strong warnings and avoid storing keys in the repo).
+The Sierra and CASM artifacts are written under `cairo/target/dev/`. The GitHub Action runs this build and the format check on pull requests.
 
-Next steps (pick one):
-- I can add a Docker-based compile script and a wallet-declare example (recommended).
-- I can implement a full helper implementation for privacy_invoke (you must
-  confirm the expected adapter behavior & response shape).
-- I can scaffold a wallet-driven deploy UI (the user signs each step).
+## Mainnet deployment checklist
+
+1. Review the compiled source and CASM artifact; confirm the caller/pool assumptions with STRK20 maintainers.
+2. Confirm the exact Vesu ERC-4626 vault address, its underlying-token address, and its deposit/withdraw ABI on Starknet mainnet.
+3. Declare and deploy with a wallet-controlled account or a dedicated deployer. Never put a private key in this repository or in Vercel.
+4. Record the deployed helper address in Vercel as `NEXT_PUBLIC_GHOSTLINE_YIELD_HELPER`, redeploy, and add the address to `strk20.json`.
+5. Run a small shield → yield deposit → unshield test. Add the three resulting mainnet transaction hashes to `strk20.json`.
+
+Deployment requires an explicit wallet signature and mainnet gas. It is deliberately not automated by this project.
+
+## Wallet action format
+
+GhostLine asks the privacy-enabled wallet for two STRK20 actions:
+
+1. A private transfer of the underlying token to the deployed helper.
+2. A `privacy_invoke` call with `Deposit`, underlying token, Vesu vToken, human-entered amount, and the wallet-supplied open-note ID.
+
+The helper returns the actual minted-share delta, rather than trusting a user-supplied share amount. Vault and token choices remain visible to the chain; the wallet identity is hidden by the STRK20 private action.

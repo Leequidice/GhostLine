@@ -4,6 +4,9 @@ out
 .env
 .env.local
 .npm-cache
+.scarb-cache/
+.scarb-config/
+cairo/target/
 *.log
 *.tsbuildinfo
 .DS_Store
