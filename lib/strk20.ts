@@ -126,6 +126,46 @@ export async function privateTransfer(account: WalletAccountV6, token: string, a
   return account.strk20InvokeTransaction(actions);
 }
 
+function privateYieldActions(
+  account: WalletAccountV6,
+  helper: string,
+  inToken: string,
+  outToken: string,
+  amount: string,
+  decimals: number,
+  operation: "deposit" | "withdraw",
+) {
+  const helperAddress = validateAddress(helper, "Yield helper address");
+  const inputAddress = validateAddress(inToken, "Yield input token address");
+  const outputAddress = validateAddress(outToken, "Yield output token address");
+  if (inputAddress.toLowerCase() === outputAddress.toLowerCase()) {
+    throw new Error("The yield input and output token addresses must be different.");
+  }
+  const baseUnits = tokenAmountToBaseUnits(amount, decimals);
+  const maxU128 = BigInt("340282366920938463463374607431768211455");
+  if (baseUnits > maxU128) throw new Error("Amount exceeds the STRK20 note limit.");
+
+  return [
+    { type: "transfer", token: outputAddress, amount: "OPEN", recipient: account.address },
+    {
+      type: "invoke",
+      contract: helperAddress,
+      calldata: [operation === "deposit" ? "0x0" : "0x1", inputAddress, outputAddress, `0x${baseUnits.toString(16)}`, "0x0", "${openNoteIds[0]}"],
+    },
+  ] satisfies STRK20_ACTION[];
+}
+
+export async function preparePrivateYieldDeposit(
+  account: WalletAccountV6,
+  helper: string,
+  underlying: string,
+  vault: string,
+  amount: string,
+  decimals: number,
+) {
+  return account.strk20PrepareInvoke(privateYieldActions(account, helper, underlying, vault, amount, decimals, "deposit"), true);
+}
+
 export async function privateYieldDeposit(
   account: WalletAccountV6,
   helper: string,
@@ -134,23 +174,16 @@ export async function privateYieldDeposit(
   amount: string,
   decimals: number,
 ) {
-  const helperAddress = validateAddress(helper, "Yield helper address");
-  const underlyingAddress = validateAddress(underlying, "Underlying token address");
-  const vaultAddress = validateAddress(vault, "Vesu vault address");
-  if (underlyingAddress.toLowerCase() === vaultAddress.toLowerCase()) {
-    throw new Error("The underlying token and Vesu vault addresses must be different.");
-  }
-  const baseUnits = tokenAmountToBaseUnits(amount, decimals);
-  const maxU128 = BigInt("340282366920938463463374607431768211455");
-  if (baseUnits > maxU128) throw new Error("Amount exceeds the STRK20 note limit.");
+  return account.strk20InvokeTransaction(privateYieldActions(account, helper, underlying, vault, amount, decimals, "deposit"));
+}
 
-  const actions: STRK20_ACTION[] = [
-    { type: "transfer", token: vaultAddress, amount: "OPEN", recipient: account.address },
-    {
-      type: "invoke",
-      contract: helperAddress,
-      calldata: ["0x0", underlyingAddress, vaultAddress, `0x${baseUnits.toString(16)}`, "0x0", "${openNoteIds[0]}"],
-    },
-  ];
-  return account.strk20InvokeTransaction(actions);
+export async function privateYieldWithdraw(
+  account: WalletAccountV6,
+  helper: string,
+  vault: string,
+  underlying: string,
+  shares: string,
+  shareDecimals: number,
+) {
+  return account.strk20InvokeTransaction(privateYieldActions(account, helper, vault, underlying, shares, shareDecimals, "withdraw"));
 }
