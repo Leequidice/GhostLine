@@ -3,7 +3,7 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import type { WalletAccountV6 } from "starknet";
 import { analyzeTransaction, type TxInput } from "../lib/privacy";
-import { connectPrivacyWallet, privateTransfer, privateYieldDeposit, shield } from "../lib/strk20";
+import { connectPrivacyWallet, preparePrivateYieldDeposit, privateTransfer, privateYieldDeposit, privateYieldWithdraw, shield } from "../lib/strk20";
 
 const initialState: TxInput = {
   amount: "5000",
@@ -24,6 +24,7 @@ export default function Home() {
   const [actionAmount, setActionAmount] = useState("10");
   const [tokenDecimals, setTokenDecimals] = useState("18");
   const [yieldVault, setYieldVault] = useState("");
+  const [yieldOperation, setYieldOperation] = useState<"deposit" | "withdraw">("deposit");
   const [actionStatus, setActionStatus] = useState("");
   const analysis = useMemo(() => analyzeTransaction(tx), [tx]);
 
@@ -376,12 +377,19 @@ export default function Home() {
         <div className="panel">
           <h3>GhostLine Private Yield Vault</h3>
           <p style={{ color: "var(--muted)", marginTop: 0 }}>
-            Convert a shielded position into private Vesu vault shares. The helper measures the real minted-share delta and returns it to your private open note.
+            Deposit a shielded position into Vesu or withdraw shielded vToken shares. The helper measures the real output delta and returns it to your private open note.
           </p>
           <div className="grid">
             <div className="field">
               <label htmlFor="yieldVault">Approved Vesu vault (vToken)</label>
               <input id="yieldVault" value={yieldVault} onChange={(event) => setYieldVault(event.target.value)} placeholder="Vesu vToken address" spellCheck={false} />
+            </div>
+            <div className="field">
+              <label htmlFor="yieldOperation">Operation</label>
+              <select id="yieldOperation" value={yieldOperation} onChange={(event) => setYieldOperation(event.target.value as "deposit" | "withdraw")}>
+                <option value="deposit">Deposit underlying → private vToken</option>
+                <option value="withdraw">Withdraw vToken → private underlying</option>
+              </select>
             </div>
             <div className="field">
               <label>GhostLine helper</label>
@@ -398,20 +406,44 @@ export default function Home() {
                 return;
               }
               try {
-                setActionStatus("Preparing private yield deposit. Ready will prove the action and return Vesu shares to an open note.");
-                const res = await privateYieldDeposit(wallet, yieldHelper, tokenAddress, yieldVault, actionAmount, Number(tokenDecimals));
-                setActionStatus(`Private yield deposit submitted: ${res.transaction_hash}`);
+                const isDeposit = yieldOperation === "deposit";
+                setActionStatus(`Preparing private yield ${isDeposit ? "deposit" : "withdrawal"}. Ready will prove the action and return the output to an open note.`);
+                const res = isDeposit
+                  ? await privateYieldDeposit(wallet, yieldHelper, tokenAddress, yieldVault, actionAmount, Number(tokenDecimals))
+                  : await privateYieldWithdraw(wallet, yieldHelper, yieldVault, tokenAddress, actionAmount, Number(tokenDecimals));
+                setActionStatus(`Private yield ${isDeposit ? "deposit" : "withdrawal"} submitted: ${res.transaction_hash}`);
               } catch (error) {
                 console.error(error);
-                setActionStatus(`Private yield deposit failed: ${actionError(error)}`);
+                setActionStatus(`Private yield action failed: ${actionError(error)}`);
               }
             }}
           >
-            Deposit privately into Vesu
+            {yieldOperation === "deposit" ? "Deposit privately into Vesu" : "Withdraw privately from Vesu"}
+          </button>
+          <button
+            className="secondary-button"
+            style={{ marginTop: 12, marginLeft: 8 }}
+            disabled={!yieldHelper || yieldOperation !== "deposit"}
+            onClick={async () => {
+              if (!wallet || !tokenAddress || !yieldVault || !actionAmount) {
+                setActionStatus("Connect a privacy wallet and enter the underlying token, Vesu vault, and amount first.");
+                return;
+              }
+              try {
+                setActionStatus("Running a non-submitting private yield deposit check in Ready.");
+                await preparePrivateYieldDeposit(wallet, yieldHelper, tokenAddress, yieldVault, actionAmount, Number(tokenDecimals));
+                setActionStatus("Private yield route check passed. You can now submit the deposit.");
+              } catch (error) {
+                console.error(error);
+                setActionStatus(`Private yield route check failed: ${actionError(error)}`);
+              }
+            }}
+          >
+            Check deposit route
           </button>
           <p style={{ color: "var(--muted)", marginTop: 14 }}>
             {yieldHelper
-              ? "Use only a reviewed Vesu vToken. This is experimental mainnet software."
+              ? "For withdrawal, enter the vToken-share amount and its decimals above. Use only a reviewed Vesu vToken; this is experimental mainnet software."
               : "Disabled until GhostLine’s reviewed helper is deployed and configured."}
           </p>
         </div>
