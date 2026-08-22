@@ -21,6 +21,11 @@ function validateAddress(value: string, label: string) {
 }
 
 function tokenAmountToFelt(value: string, decimals: number) {
+  const baseUnits = tokenAmountToBaseUnits(value, decimals);
+  return `0x${baseUnits.toString(16)}`;
+}
+
+function tokenAmountToBaseUnits(value: string, decimals: number) {
   const amount = value.trim();
   if (!Number.isInteger(decimals) || decimals < 0 || decimals > 255) {
     throw new Error("Token decimals must be a whole number between 0 and 255.");
@@ -33,11 +38,10 @@ function tokenAmountToFelt(value: string, decimals: number) {
   if (fraction.length > decimals) {
     throw new Error(`This token supports at most ${decimals} decimal places.`);
   }
-  const baseUnits = `${whole}${fraction.padEnd(decimals, "0")}`.replace(/^0+/, "") || "0";
-  if (baseUnits === "0") throw new Error("Amount must be greater than zero.");
+  const baseUnitText = `${whole}${fraction.padEnd(decimals, "0")}`.replace(/^0+/, "") || "0";
+  if (baseUnitText === "0") throw new Error("Amount must be greater than zero.");
 
-  // Ready expects a felt encoded as hexadecimal for STRK20 actions.
-  return `0x${BigInt(baseUnits).toString(16)}`;
+  return BigInt(baseUnitText);
 }
 
 function providerUrl() {
@@ -119,5 +123,34 @@ export async function privateTransfer(account: WalletAccountV6, token: string, a
     amount: tokenAmountToFelt(amount, decimals),
     recipient: validateAddress(recipient, "Recipient"),
   }];
+  return account.strk20InvokeTransaction(actions);
+}
+
+export async function privateYieldDeposit(
+  account: WalletAccountV6,
+  helper: string,
+  underlying: string,
+  vault: string,
+  amount: string,
+  decimals: number,
+) {
+  const helperAddress = validateAddress(helper, "Yield helper address");
+  const underlyingAddress = validateAddress(underlying, "Underlying token address");
+  const vaultAddress = validateAddress(vault, "Vesu vault address");
+  if (underlyingAddress.toLowerCase() === vaultAddress.toLowerCase()) {
+    throw new Error("The underlying token and Vesu vault addresses must be different.");
+  }
+  const baseUnits = tokenAmountToBaseUnits(amount, decimals);
+  const maxU128 = BigInt("340282366920938463463374607431768211455");
+  if (baseUnits > maxU128) throw new Error("Amount exceeds the STRK20 note limit.");
+
+  const actions: STRK20_ACTION[] = [
+    { type: "transfer", token: vaultAddress, amount: "OPEN", recipient: account.address },
+    {
+      type: "invoke",
+      contract: helperAddress,
+      calldata: ["0x0", underlyingAddress, vaultAddress, `0x${baseUnits.toString(16)}`, "0x0", "${openNoteIds[0]}"],
+    },
+  ];
   return account.strk20InvokeTransaction(actions);
 }
