@@ -9,6 +9,32 @@ export type PrivacyWalletSession = {
   address: string;
 };
 
+type YieldHelperArtifacts = {
+  contract: unknown;
+  casm: unknown;
+};
+
+async function loadYieldHelperArtifacts(): Promise<YieldHelperArtifacts> {
+  const [contractResponse, casmResponse] = await Promise.all([
+    fetch("/cairo/ghostline_yield_anonymizer_GhostLineYieldVault.contract_class.json"),
+    fetch("/cairo/ghostline_yield_anonymizer_GhostLineYieldVault.compiled_contract_class.json"),
+  ]);
+  if (!contractResponse.ok || !casmResponse.ok) {
+    throw new Error("The bundled Cairo deployment artifacts are unavailable. Redeploy GhostLine and retry.");
+  }
+  return { contract: await contractResponse.json(), casm: await casmResponse.json() };
+}
+
+export async function declareYieldHelper(account: WalletAccountV6) {
+  const artifacts = await loadYieldHelperArtifacts();
+  return account.declareIfNot(artifacts as Parameters<WalletAccountV6["declareIfNot"]>[0]);
+}
+
+export async function deployYieldHelper(account: WalletAccountV6, classHash: string) {
+  const normalizedClassHash = validateAddress(classHash, "Yield helper class hash");
+  return account.deploy({ classHash: normalizedClassHash, constructorCalldata: [], unique: true });
+}
+
 function validateAddress(value: string, label: string) {
   const address = value.trim();
   if (!/^0x[0-9a-fA-F]{1,64}$/.test(address)) {
