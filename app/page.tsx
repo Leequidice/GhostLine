@@ -3,7 +3,7 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import type { WalletAccountV6 } from "starknet";
 import { analyzeTransaction, type TxInput } from "../lib/privacy";
-import { connectPrivacyWallet, preparePrivateYieldDeposit, privateTransfer, privateYieldDeposit, privateYieldWithdraw, shield } from "../lib/strk20";
+import { connectPrivacyWallet, declareYieldHelper, deployYieldHelper, preparePrivateYieldDeposit, privateTransfer, privateYieldDeposit, privateYieldWithdraw, shield } from "../lib/strk20";
 
 const initialState: TxInput = {
   amount: "5000",
@@ -32,6 +32,7 @@ export default function Home() {
   const [tokenDecimals, setTokenDecimals] = useState("18");
   const [yieldVault, setYieldVault] = useState("");
   const [yieldOperation, setYieldOperation] = useState<"deposit" | "withdraw">("deposit");
+  const [yieldClassHash, setYieldClassHash] = useState("");
   const [actionStatus, setActionStatus] = useState("");
   const analysis = useMemo(() => analyzeTransaction(tx), [tx]);
 
@@ -464,6 +465,57 @@ export default function Home() {
             {yieldHelper
               ? "For withdrawal, enter the vToken-share amount and its decimals above. Use only a reviewed Vesu vToken; this is experimental mainnet software."
               : "Disabled until GhostLine’s reviewed helper is deployed and configured."}
+          </p>
+        </div>
+      </section>
+
+      <section className="actions-panel">
+        <div className="panel">
+          <h3>Alpha helper deployment</h3>
+          <p style={{ color: "var(--muted)", marginTop: 0 }}>
+            Mainnet alpha only. This declares GhostLine’s compiled, stateless yield helper and deploys it through your connected wallet. It costs STRK gas and is irreversible; use a small, dedicated test balance.
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <button
+              className="secondary-button"
+              disabled={!wallet}
+              onClick={async () => {
+                if (!wallet) { setActionStatus("Connect Ready before declaring the alpha helper."); return; }
+                try {
+                  setActionStatus("Loading the compiled helper. Confirm the DECLARE transaction in Ready.");
+                  const result = await declareYieldHelper(wallet);
+                  setYieldClassHash(result.class_hash);
+                  setActionStatus(result.transaction_hash ? `Helper declared: ${result.class_hash}. Confirm deployment next.` : `Helper class already declared: ${result.class_hash}. Confirm deployment next.`);
+                } catch (error) {
+                  console.error(error);
+                  setActionStatus(`Helper declaration failed: ${actionError(error)}`);
+                }
+              }}
+            >
+              1. Declare alpha helper
+            </button>
+            <button
+              className="primary-button"
+              disabled={!wallet || !yieldClassHash}
+              onClick={async () => {
+                if (!wallet || !yieldClassHash) return;
+                try {
+                  setActionStatus("Confirm the DEPLOY transaction in Ready. This creates the stateless helper instance.");
+                  const result = await deployYieldHelper(wallet, yieldClassHash);
+                  const first = Array.isArray(result) ? result[0] : result;
+                  const deployedAddress = (first as { contract_address?: string; address?: string }).contract_address ?? (first as { address?: string }).address;
+                  setActionStatus(`Helper deployed${deployedAddress ? ` at ${deployedAddress}` : ""}. Send this result to Codex so I can configure Vercel.`);
+                } catch (error) {
+                  console.error(error);
+                  setActionStatus(`Helper deployment failed: ${actionError(error)}`);
+                }
+              }}
+            >
+              2. Deploy alpha helper
+            </button>
+          </div>
+          <p style={{ color: "var(--muted)", marginTop: 14 }}>
+            This does not move pool funds. After deployment, GhostLine will be configured with the returned helper address, then we will test a minute STRK shield → yield deposit → withdrawal route.
           </p>
         </div>
       </section>
