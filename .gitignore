@@ -7,6 +7,9 @@ out
 .scarb-cache/
 .scarb-config/
 cairo/target/
+.tools/
+cairo/.scarb-cache-2.18/
+cairo/.scarb-config-2.18/
 *.log
 *.tsbuildinfo
 .DS_Store
