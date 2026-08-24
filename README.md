@@ -4,7 +4,7 @@
 
 GhostLine can route a shielded ERC-20 position into a reviewed Vesu ERC-4626 vault and return the minted vToken shares to a new private note. The Cairo 2 helper measures the actual share balance delta, so the private output is based on what the vault minted rather than a user-supplied value.
 
-The helper is not deployed yet. Build and mainnet safety requirements are documented in [DEPLOY_HELPER.md](DEPLOY_HELPER.md); set `NEXT_PUBLIC_GHOSTLINE_YIELD_HELPER` only after an independent review and an explicit mainnet deployment.
+The shared helper is deployed on Starknet mainnet at [`0x177b…18be0`](https://starkscan.co/contract/0x177b8d1f76cd61ed62f32a8b8de117359f96042d2cde33b6a53518033418be0). GhostLine uses this address by default; `NEXT_PUBLIC_GHOSTLINE_YIELD_HELPER` can override it for an explicitly reviewed future deployment.
 
 The first prefilled route is the Vesu Genesis Pool STRK market. Its STRK underlying and vSTRK addresses are taken from Vesu's official [`pools_sn_mainnet.json`](https://github.com/vesuxyz/changelog/blob/main/pools_sn_mainnet.json). Other vault addresses remain manual and should be independently verified before use.
 
