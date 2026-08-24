@@ -61,7 +61,7 @@ export default function Home() {
   const actionError = (error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     return /INVALID_REQUEST_PAYLOAD/i.test(message)
-      ? "The wallet rejected the request payload. Use a supported Starknet Mainnet token contract address and a positive whole-number amount in its smallest unit."
+      ? "Ready rejected the private-DeFi action before proving it (INVALID_REQUEST_PAYLOAD). Confirm the selected helper is the official Vesu address, shield the input token separately, wait at least 10 blocks for note maturity, and leave enough private STRK for the pool fee."
       : message;
   };
 
@@ -418,6 +418,16 @@ export default function Home() {
             }}
           >
             Use verified Vesu Genesis STRK vault
+          </button>
+          <button
+            className="secondary-button"
+            style={{ marginLeft: 8 }}
+            onClick={() => {
+              setYieldHelperOverride(VESU_YIELD_HELPER_MAINNET);
+              setActionStatus("Using the official mainnet Vesu helper for this browser session.");
+            }}
+          >
+            Use official Vesu helper
           </button>
           <button
             className="primary-button"
