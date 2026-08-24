@@ -6,7 +6,7 @@ It does not custody funds between calls and has no owner. `privacy_invoke` is in
 
 ## Build
 
-Install [Scarb](https://docs.swmansion.com/scarb/) 2.19.4, then run from the repository root:
+Install [Scarb](https://docs.swmansion.com/scarb/) 2.18.0, then run from the repository root:
 
 ```powershell
 Set-Location cairo
@@ -21,7 +21,7 @@ The Sierra and CASM artifacts are written under `cairo/target/dev/`. The GitHub 
 1. Review the compiled source and CASM artifact; confirm the caller/pool assumptions with STRK20 maintainers.
 2. Confirm the exact Vesu ERC-4626 vault address, its underlying-token address, and its deposit/withdraw ABI on Starknet mainnet.
 3. Declare and deploy with a wallet-controlled account or a dedicated deployer. Never put a private key in this repository or in Vercel.
-4. Record the deployed helper address in Vercel as `NEXT_PUBLIC_GHOSTLINE_YIELD_HELPER`, redeploy, and add the address to `strk20.json`.
+4. Record the deployed helper address in Vercel as `NEXT_PUBLIC_GHOSTLINE_YIELD_HELPER` if it should replace the current shared mainnet helper, then add the address to `strk20.json`.
 5. Run a small shield → yield deposit → unshield test. Add the three resulting mainnet transaction hashes to `strk20.json`.
 
 Deployment requires an explicit wallet signature and mainnet gas. It is deliberately not automated by this project.
