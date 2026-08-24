@@ -3,7 +3,7 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import type { WalletAccountV6 } from "starknet";
 import { analyzeTransaction, type TxInput } from "../lib/privacy";
-import { connectPrivacyWallet, preparePrivateYieldDeposit, privateTransfer, privateYieldDeposit, privateYieldWithdraw, shield } from "../lib/strk20";
+import { connectOperatorWallet, connectPrivacyWallet, declareAndDeployYieldHelper, preparePrivateYieldDeposit, privateTransfer, privateYieldDeposit, privateYieldWithdraw, shield } from "../lib/strk20";
 
 const initialState: TxInput = {
   amount: "5000",
@@ -24,6 +24,8 @@ const VESU_GENESIS_STRK = {
 export default function Home() {
   const [tx, setTx] = useState<TxInput>(initialState);
   const [wallet, setWallet] = useState<WalletAccountV6 | null>(null);
+  const [operatorWallet, setOperatorWallet] = useState<WalletAccountV6 | null>(null);
+  const [operatorStatus, setOperatorStatus] = useState("No operator wallet connected");
   const [walletStatus, setWalletStatus] = useState<string>("Wallet not connected");
   const [walletAddress, setWalletAddress] = useState<string>("Not connected");
   const [tokenAddress, setTokenAddress] = useState("");
@@ -472,10 +474,47 @@ export default function Home() {
 
       {!yieldHelper && <section className="actions-panel">
         <div className="panel">
-          <h3>Shared demo helper pending operator setup</h3>
+          <h3>One-time shared helper setup</h3>
           <p style={{ color: "var(--muted)", marginTop: 0 }}>
-            GhostLine will use one app-owned helper address after it has been declared and deployed once by an administrator. This setup is intentionally not a user or judge action: private Vesu deposits remain disabled until the verified address is configured.
+            An operator declares GhostLine's Cairo 2.18 helper and deploys one shared instance. Your wallet will show two separate confirmations. This does not move pool funds, and no user or judge repeats it.
           </p>
+          <p style={{ color: "var(--muted)" }}>{operatorStatus}</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <button
+              className="secondary-button"
+              onClick={async () => {
+                try {
+                  setOperatorStatus("Connecting operator wallet…");
+                  const session = await connectOperatorWallet();
+                  setOperatorWallet(session.account);
+                  setOperatorStatus(`${session.walletName} operator connected: ${session.address}`);
+                } catch (error) {
+                  setOperatorStatus(`Operator connection failed: ${actionError(error)}`);
+                }
+              }}
+            >
+              Connect operator wallet
+            </button>
+            <button
+              className="primary-button"
+              disabled={!operatorWallet}
+              onClick={async () => {
+                if (!operatorWallet) return;
+                try {
+                  setActionStatus("Approve the class declaration, then the shared helper deployment, in your operator wallet.");
+                  const deployed = await declareAndDeployYieldHelper(operatorWallet);
+                  setYieldHelperOverride(deployed.address);
+                  setOperatorStatus(`Helper live at ${deployed.address}. Send me this public address so I can make it the permanent GhostLine configuration.`);
+                  setActionStatus(`Shared helper deployed: ${deployed.transactionHash}`);
+                } catch (error) {
+                  console.error(error);
+                  setActionStatus(`Operator setup failed: ${actionError(error)}`);
+                }
+              }}
+            >
+              Declare and deploy shared helper
+            </button>
+          </div>
         </div>
       </section>}
 
