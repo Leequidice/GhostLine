@@ -3,7 +3,7 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import type { WalletAccountV6 } from "starknet";
 import { analyzeTransaction, type TxInput } from "../lib/privacy";
-import { connectOperatorWallet, connectPrivacyWallet, declareAndDeployYieldHelper, preparePrivateYieldDeposit, privateTransfer, privateYieldDeposit, privateYieldWithdraw, shield, VESU_YIELD_HELPER_MAINNET } from "../lib/strk20";
+import { connectOperatorWallet, connectPrivacyWallet, declareAndDeployYieldHelper, getPublicTokenBalance, preparePrivateYieldDeposit, privateTransfer, privateYieldDeposit, privateYieldWithdraw, shield, VESU_YIELD_HELPER_MAINNET } from "../lib/strk20";
 
 const initialState: TxInput = {
   amount: "5000",
@@ -26,6 +26,8 @@ export default function Home() {
   const [wallet, setWallet] = useState<WalletAccountV6 | null>(null);
   const [operatorWallet, setOperatorWallet] = useState<WalletAccountV6 | null>(null);
   const [operatorStatus, setOperatorStatus] = useState("No operator wallet connected");
+  const [publicBalance, setPublicBalance] = useState<string>("—");
+  const [shieldedBalance, setShieldedBalance] = useState<string>("—");
   const [walletStatus, setWalletStatus] = useState<string>("Wallet not connected");
   const [walletAddress, setWalletAddress] = useState<string>("Not connected");
   const [tokenAddress, setTokenAddress] = useState("");
@@ -75,11 +77,41 @@ export default function Home() {
     setWalletAddress("Not connected");
     setWalletStatus("Wallet disconnected");
     setActionStatus("");
+    setPublicBalance("—");
+    setShieldedBalance("—");
   };
 
   const network = process.env.NEXT_PUBLIC_CHAIN_ID ?? "SN_MAIN";
   const configuredYieldHelper = process.env.NEXT_PUBLIC_GHOSTLINE_YIELD_HELPER ?? VESU_YIELD_HELPER_MAINNET;
   const yieldHelper = yieldHelperOverride || configuredYieldHelper;
+
+  const formatTokenBalance = (raw: bigint, decimals: number) => {
+    let divisor = BigInt(1);
+    for (let index = 0; index < decimals; index += 1) divisor *= BigInt(10);
+    const whole = raw / divisor;
+    const fraction = (raw % divisor).toString().padStart(decimals, "0").replace(/0+$/, "").slice(0, 6);
+    return fraction ? `${whole}.${fraction}` : whole.toString();
+  };
+
+  const refreshBalances = async () => {
+    if (!wallet) {
+      setActionStatus("Connect a privacy wallet before reading balances.");
+      return;
+    }
+    const selectedToken = tokenAddress || VESU_GENESIS_STRK.underlying;
+    const decimals = Number(tokenDecimals);
+    try {
+      setActionStatus("Reading public balance, then requesting Ready consent for the shielded balance…");
+      const publicRaw = await getPublicTokenBalance(wallet, selectedToken);
+      setPublicBalance(formatTokenBalance(publicRaw, decimals));
+      const privateBalances = await wallet.strk20Balances([selectedToken]);
+      const privateEntry = privateBalances.find((entry) => BigInt(entry.token) === BigInt(selectedToken));
+      setShieldedBalance(formatTokenBalance(BigInt(privateEntry?.balance ?? "0x0"), decimals));
+      setActionStatus("Balances refreshed. Shielded balance is supplied by Ready; GhostLine never receives a viewing key.");
+    } catch (error) {
+      setActionStatus(`Balance refresh failed: ${actionError(error)}`);
+    }
+  };
 
   const ringStyle: CSSProperties = {
     ["--value" as any]: `${analysis.score * 3.6}deg`,
@@ -111,6 +143,14 @@ export default function Home() {
             <span className="meta-label">Address</span>
             <strong>{walletAddress}</strong>
           </div>
+          <div>
+            <span className="meta-label">Public balance</span>
+            <strong>{publicBalance}</strong>
+          </div>
+          <div>
+            <span className="meta-label">Shielded balance</span>
+            <strong>{shieldedBalance}</strong>
+          </div>
         </div>
 
         <div className="wallet-actions">
@@ -120,6 +160,11 @@ export default function Home() {
           {wallet ? (
             <button onClick={handleDisconnect} className="secondary-button">
               Disconnect
+            </button>
+          ) : null}
+          {wallet ? (
+            <button onClick={refreshBalances} className="secondary-button">
+              Refresh balances
             </button>
           ) : null}
         </div>
