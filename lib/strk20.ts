@@ -49,6 +49,15 @@ function providerUrl() {
   if (!url || url.includes("<YOUR_ALCHEMY_KEY>")) {
     throw new Error("Set NEXT_PUBLIC_PROVIDER_URL to a Starknet mainnet RPC URL before connecting a privacy wallet.");
   }
+
+  // Alchemy's older Starknet path is pinned to RPC 0.10. Braavos uses the
+  // `pre_confirmed` simulation tag, which that endpoint rejects. Preserve
+  // existing deployments while using Alchemy's current, version-negotiated v2
+  // endpoint instead.
+  const legacyAlchemyPath = "/starknet/version/rpc/v0_10/";
+  if (url.includes(legacyAlchemyPath)) {
+    return url.replace(legacyAlchemyPath, "/v2/");
+  }
   return url;
 }
 
