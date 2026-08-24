@@ -3,7 +3,7 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import type { WalletAccountV6 } from "starknet";
 import { analyzeTransaction, type TxInput } from "../lib/privacy";
-import { connectOperatorWallet, connectPrivacyWallet, declareAndDeployYieldHelper, GHOSTLINE_YIELD_HELPER_MAINNET, preparePrivateYieldDeposit, privateTransfer, privateYieldDeposit, privateYieldWithdraw, shield } from "../lib/strk20";
+import { connectOperatorWallet, connectPrivacyWallet, declareAndDeployYieldHelper, preparePrivateYieldDeposit, privateTransfer, privateYieldDeposit, privateYieldWithdraw, shield, VESU_YIELD_HELPER_MAINNET } from "../lib/strk20";
 
 const initialState: TxInput = {
   amount: "5000",
@@ -78,7 +78,7 @@ export default function Home() {
   };
 
   const network = process.env.NEXT_PUBLIC_CHAIN_ID ?? "SN_MAIN";
-  const configuredYieldHelper = process.env.NEXT_PUBLIC_GHOSTLINE_YIELD_HELPER ?? GHOSTLINE_YIELD_HELPER_MAINNET;
+  const configuredYieldHelper = process.env.NEXT_PUBLIC_GHOSTLINE_YIELD_HELPER ?? VESU_YIELD_HELPER_MAINNET;
   const yieldHelper = yieldHelperOverride || configuredYieldHelper;
 
   const ringStyle: CSSProperties = {
