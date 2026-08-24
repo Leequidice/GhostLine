@@ -171,6 +171,18 @@ export async function shield(account: WalletAccountV6, token: string, amount: st
   return account.strk20InvokeTransaction(actions);
 }
 
+export async function getPublicTokenBalance(account: WalletAccountV6, token: string) {
+  const provider = new RpcProvider({ nodeUrl: providerUrl() });
+  const result = await provider.callContract({
+    contractAddress: validateAddress(token, "Token address"),
+    entrypoint: "balance_of",
+    calldata: [account.address],
+  });
+  const low = BigInt(result[0] ?? "0x0");
+  const high = BigInt(result[1] ?? "0x0");
+  return low + high * BigInt("340282366920938463463374607431768211456");
+}
+
 export async function privateTransfer(account: WalletAccountV6, token: string, amount: string, recipient: string, decimals: number) {
   const actions: STRK20_ACTION[] = [{
     type: "transfer",
