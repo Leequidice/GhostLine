@@ -9,18 +9,6 @@ export type PrivacyWalletSession = {
   address: string;
 };
 
-// Official STRK20 Vesu anonymizer class, published by starkware-libs/starknet-privacy.
-// It is already declared on mainnet, so Ready only has to sign a normal UDC invoke.
-export const OFFICIAL_VESU_ANONYMIZER_CLASS_HASH = "0x3751128dc3ebd36215f982766f14aaca8f78793e4b0f42a73e49372a8e24aae";
-
-export async function deployDemoYieldHelper(account: WalletAccountV6) {
-  return account.deploy({
-    classHash: OFFICIAL_VESU_ANONYMIZER_CLASS_HASH,
-    constructorCalldata: [],
-    unique: true,
-  });
-}
-
 function validateAddress(value: string, label: string) {
   const address = value.trim();
   if (!/^0x[0-9a-fA-F]{1,64}$/.test(address)) {
