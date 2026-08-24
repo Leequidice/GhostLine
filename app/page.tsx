@@ -3,7 +3,7 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import type { WalletAccountV6 } from "starknet";
 import { analyzeTransaction, type TxInput } from "../lib/privacy";
-import { connectPrivacyWallet, deployDemoYieldHelper, preparePrivateYieldDeposit, privateTransfer, privateYieldDeposit, privateYieldWithdraw, shield } from "../lib/strk20";
+import { connectPrivacyWallet, preparePrivateYieldDeposit, privateTransfer, privateYieldDeposit, privateYieldWithdraw, shield } from "../lib/strk20";
 
 const initialState: TxInput = {
   amount: "5000",
@@ -402,7 +402,7 @@ export default function Home() {
             </div>
             <div className="field">
               <label htmlFor="yieldHelper">GhostLine demo helper</label>
-              <input id="yieldHelper" value={yieldHelper} onChange={(event) => setYieldHelperOverride(event.target.value)} placeholder="Deploy the demo helper once, or enter its address" spellCheck={false} />
+              <input id="yieldHelper" value={yieldHelper} onChange={(event) => setYieldHelperOverride(event.target.value)} placeholder="Configured after one-time operator deployment" spellCheck={false} />
             </div>
           </div>
           <button
@@ -472,34 +472,9 @@ export default function Home() {
 
       {!yieldHelper && <section className="actions-panel">
         <div className="panel">
-          <h3>Set up the shared demo helper</h3>
+          <h3>Shared demo helper pending operator setup</h3>
           <p style={{ color: "var(--muted)", marginTop: 0 }}>
-            One administrator deploys the official, already-declared STRK20 Vesu helper once. Ready only needs to confirm a standard Universal Deployer transaction; no declaration is required. Afterward, GhostLine uses the returned address immediately for this browser session.
-          </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            <button
-              className="primary-button"
-              disabled={!wallet}
-              onClick={async () => {
-                if (!wallet) { setActionStatus("Connect Ready before deploying the shared demo helper."); return; }
-                try {
-                  setActionStatus("Confirm the single UDC deployment transaction in Ready. No class declaration is involved.");
-                  const result = await deployDemoYieldHelper(wallet);
-                  const deployedAddress = result.contract_address[0];
-                  if (!deployedAddress) throw new Error("Ready returned no deployed helper address.");
-                  setYieldHelperOverride(deployedAddress);
-                  setActionStatus(`Demo helper deployed at ${deployedAddress}. It is active in this session; send me this address to make it the shared production-demo helper.`);
-                } catch (error) {
-                  console.error(error);
-                  setActionStatus(`Demo helper deployment failed: ${actionError(error)}`);
-                }
-              }}
-            >
-              Deploy shared demo helper
-            </button>
-          </div>
-          <p style={{ color: "var(--muted)", marginTop: 14 }}>
-            This deployment does not move pool funds. After it succeeds, use the Vesu STRK preset and run the route check before a minute STRK test.
+            GhostLine will use one app-owned helper address after it has been declared and deployed once by an administrator. This setup is intentionally not a user or judge action: private Vesu deposits remain disabled until the verified address is configured.
           </p>
         </div>
       </section>}
