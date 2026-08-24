@@ -3,6 +3,11 @@ import type { WalletWithStarknetFeatures } from "@starknet-io/get-starknet-walle
 
 const MINIMUM_WALLET_API_VERSION = "0.10.3";
 
+// Shared, stateless GhostLine helper deployed on Starknet mainnet for the
+// Private Sprint demonstration. Its address is public by design; it never
+// holds funds between a STRK20 private action's atomic calls.
+export const GHOSTLINE_YIELD_HELPER_MAINNET = "0x177b8d1f76cd61ed62f32a8b8de117359f96042d2cde33b6a53518033418be0";
+
 export type PrivacyWalletSession = {
   account: WalletAccountV6;
   walletName: string;
