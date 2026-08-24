@@ -5,7 +5,7 @@ edition = "2024_07"
 description = "GhostLine private Vesu yield helper for STRK20"
 
 [dependencies]
-starknet = "2.19.4"
+starknet = "2.18.0"
 
 [lib]
 casm = true
