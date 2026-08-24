@@ -111,6 +111,47 @@ export async function connectPrivacyWallet(): Promise<PrivacyWalletSession> {
   throw new Error(message);
 }
 
+/** Connects an operator wallet without requiring STRK20 support. It is used only
+ * for the one-time declaration and deployment of GhostLine's shared helper. */
+export async function connectOperatorWallet(): Promise<PrivacyWalletSession> {
+  const wallets = await discoverWallets();
+  let lastConnectionError: unknown;
+
+  for (const wallet of wallets) {
+    try {
+      const provider = new RpcProvider({ nodeUrl: providerUrl() });
+      const account = await WalletAccountV6.connect(provider, wallet);
+      if (!account.address) throw new Error("The wallet did not provide an account address.");
+      return { account, walletName: wallet.name, address: account.address };
+    } catch (error) {
+      lastConnectionError = error;
+    }
+  }
+
+  const message = lastConnectionError instanceof Error ? lastConnectionError.message : "Operator wallet connection failed";
+  throw new Error(message);
+}
+
+export async function declareAndDeployYieldHelper(account: WalletAccountV6) {
+  const [contractResponse, casmResponse] = await Promise.all([
+    fetch("/cairo/ghostline_yield_anonymizer_GhostLineYieldVault.contract_class.json"),
+    fetch("/cairo/ghostline_yield_anonymizer_GhostLineYieldVault.compiled_contract_class.json"),
+  ]);
+  if (!contractResponse.ok || !casmResponse.ok) {
+    throw new Error("GhostLine's verified Cairo artifacts could not be loaded.");
+  }
+
+  const result = await account.declareAndDeploy({
+    contract: await contractResponse.json(),
+    casm: await casmResponse.json(),
+    constructorCalldata: [],
+    unique: true,
+  });
+  const address = result.deploy.contract_address;
+  if (!address) throw new Error("The deploy transaction completed without a helper address.");
+  return { classHash: result.declare.class_hash, address, transactionHash: result.deploy.transaction_hash };
+}
+
 export async function shield(account: WalletAccountV6, token: string, amount: string, decimals: number) {
   const actions: STRK20_ACTION[] = [{ type: "deposit", token: validateAddress(token, "Token address"), amount: tokenAmountToFelt(amount, decimals) }];
   return account.strk20InvokeTransaction(actions);
