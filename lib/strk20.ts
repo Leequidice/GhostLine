@@ -213,6 +213,10 @@ function privateYieldActions(
   if (baseUnits > maxU128) throw new Error("Amount exceeds the STRK20 note limit.");
 
   return [
+    // The privacy pool must first withdraw the private input note to the
+    // helper. The helper then deposits/withdraws from Vesu and returns the
+    // measured output to the open note created by the next action.
+    { type: "withdraw", token: inputAddress, amount: `0x${baseUnits.toString(16)}`, recipient: helperAddress },
     { type: "transfer", token: outputAddress, amount: "OPEN", recipient: account.address },
     {
       type: "invoke",
