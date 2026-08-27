@@ -3,7 +3,7 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import type { WalletAccountV6 } from "starknet";
 import { analyzeTransaction, type TxInput } from "../lib/privacy";
-import { connectOperatorWallet, connectPrivacyWallet, declareAndDeployYieldHelper, getPublicTokenBalance, preparePrivateYieldDeposit, privateTransfer, privateYieldDeposit, privateYieldWithdraw, shield, VESU_YIELD_HELPER_MAINNET } from "../lib/strk20";
+import { connectOperatorWallet, connectPrivacyWallet, declareAndDeployYieldHelper, getPublicTokenBalance, privateTransfer, shield, VESU_YIELD_HELPER_MAINNET } from "../lib/strk20";
 
 const initialState: TxInput = {
   amount: "5000",
@@ -63,7 +63,7 @@ export default function Home() {
   const actionError = (error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     return /INVALID_REQUEST_PAYLOAD/i.test(message)
-      ? "Ready rejected the private-DeFi action before proving it (INVALID_REQUEST_PAYLOAD). Confirm the selected helper is the official Vesu address, shield the input token separately, wait at least 10 blocks for note maturity, and leave enough private STRK for the pool fee."
+      ? "The wallet rejected this request before proof generation (INVALID_REQUEST_PAYLOAD). No pool funds were moved."
       : message;
   };
 
@@ -431,9 +431,9 @@ export default function Home() {
 
       <section className="actions-panel">
         <div className="panel">
-          <h3>GhostLine Private Yield Vault</h3>
+          <h3>GhostLine Private Yield Vault <span style={{ color: "#f6c35b" }}>— Experimental</span></h3>
           <p style={{ color: "var(--muted)", marginTop: 0 }}>
-            Deposit a shielded position into Vesu or withdraw shielded vToken shares. The helper measures the real output delta and returns it to your private open note.
+            Planned private Vesu deposits and withdrawals. The route is wired to the official helper, but the current Ready wallet rejects external private-DeFi invokes before proof generation.
           </p>
           <div className="grid">
             <div className="field">
@@ -459,7 +459,7 @@ export default function Home() {
               setTokenAddress(VESU_GENESIS_STRK.underlying);
               setTokenDecimals(VESU_GENESIS_STRK.decimals);
               setYieldVault(VESU_GENESIS_STRK.vault);
-              setActionStatus("Vesu Genesis STRK market selected. Enter the amount, then check the route before submitting.");
+              setActionStatus("Vesu Genesis STRK market selected for the experimental route preview.");
             }}
           >
             Use verified Vesu Genesis STRK vault
@@ -474,55 +474,8 @@ export default function Home() {
           >
             Use official Vesu helper
           </button>
-          <button
-            className="primary-button"
-            style={{ marginTop: 12 }}
-            disabled={!yieldHelper}
-            onClick={async () => {
-              if (!wallet || !tokenAddress || !yieldVault || !actionAmount) {
-                setActionStatus("Connect a privacy wallet and enter the underlying token, Vesu vault, and amount first.");
-                return;
-              }
-              try {
-                const isDeposit = yieldOperation === "deposit";
-                setActionStatus(`Preparing private yield ${isDeposit ? "deposit" : "withdrawal"}. Ready will prove the action and return the output to an open note.`);
-                const res = isDeposit
-                  ? await privateYieldDeposit(wallet, yieldHelper, tokenAddress, yieldVault, actionAmount, Number(tokenDecimals))
-                  : await privateYieldWithdraw(wallet, yieldHelper, yieldVault, tokenAddress, actionAmount, Number(tokenDecimals));
-                setActionStatus(`Private yield ${isDeposit ? "deposit" : "withdrawal"} submitted: ${res.transaction_hash}`);
-              } catch (error) {
-                console.error(error);
-                setActionStatus(`Private yield action failed: ${actionError(error)}`);
-              }
-            }}
-          >
-            {yieldOperation === "deposit" ? "Deposit privately into Vesu" : "Withdraw privately from Vesu"}
-          </button>
-          <button
-            className="secondary-button"
-            style={{ marginTop: 12, marginLeft: 8 }}
-            disabled={!yieldHelper || yieldOperation !== "deposit"}
-            onClick={async () => {
-              if (!wallet || !tokenAddress || !yieldVault || !actionAmount) {
-                setActionStatus("Connect a privacy wallet and enter the underlying token, Vesu vault, and amount first.");
-                return;
-              }
-              try {
-                setActionStatus("Running a non-submitting private yield deposit check in Ready.");
-                await preparePrivateYieldDeposit(wallet, yieldHelper, tokenAddress, yieldVault, actionAmount, Number(tokenDecimals));
-                setActionStatus("Private yield route check passed. You can now submit the deposit.");
-              } catch (error) {
-                console.error(error);
-                setActionStatus(`Private yield route check failed: ${actionError(error)}`);
-              }
-            }}
-          >
-            Check deposit route
-          </button>
           <p style={{ color: "var(--muted)", marginTop: 14 }}>
-            {yieldHelper
-              ? "For withdrawal, enter the vToken-share amount and its decimals above. Use only a reviewed Vesu vToken; this is experimental mainnet software."
-              : "Disabled until GhostLine’s reviewed helper is deployed and configured."}
+            No Vesu action is submitted from GhostLine while Ready v5.33.9 returns INVALID_REQUEST_PAYLOAD for this action class. Your shielded balance remains in your wallet. This route will be re-enabled only after it succeeds with a privacy wallet on mainnet.
           </p>
         </div>
       </section>
