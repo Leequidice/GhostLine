@@ -3,7 +3,7 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import type { WalletAccountV6 } from "starknet";
 import { analyzeTransaction, type TxInput } from "../lib/privacy";
-import { connectOperatorWallet, connectPrivacyWallet, declareAndDeployYieldHelper, getPublicTokenBalance, privateTransfer, shield, VESU_YIELD_HELPER_MAINNET } from "../lib/strk20";
+import { connectOperatorWallet, connectPrivacyWallet, declareAndDeployYieldHelper, getPublicTokenBalance, privateTransfer, shield, unshield, VESU_YIELD_HELPER_MAINNET } from "../lib/strk20";
 
 const initialState: TxInput = {
   amount: "5000",
@@ -38,6 +38,7 @@ export default function Home() {
   const [yieldOperation, setYieldOperation] = useState<"deposit" | "withdraw">("deposit");
   const [yieldHelperOverride, setYieldHelperOverride] = useState("");
   const [actionStatus, setActionStatus] = useState("");
+  const [activeAction, setActiveAction] = useState<"shield" | "unshield" | "transfer" | null>(null);
   const analysis = useMemo(() => analyzeTransaction(tx), [tx]);
 
   const handleChange = <K extends keyof TxInput>(key: K, value: TxInput[K]) => {
@@ -285,32 +286,62 @@ export default function Home() {
 
           <div style={{ marginTop: 12 }}>
             <button
+              disabled={activeAction !== null}
               onClick={async () => {
                 if (!wallet || !tokenAddress || !actionAmount) { setActionStatus("Connect a STRK20-capable wallet and enter a token address and amount first."); return; }
                 try {
-                  setActionStatus("Requesting private deposit from your wallet. It will request approval and then the STRK20 deposit.");
+                  setActiveAction("shield");
+                  setActionStatus("Shield request sent once. Ready may request an ERC-20 approval and then one STRK20 shield confirmation. Do not approve another Shield prompt after a successful shield transaction.");
                   const res = await shield(wallet, tokenAddress, actionAmount, Number(tokenDecimals));
                   setActionStatus(`Shield transaction submitted: ${res.transaction_hash}`);
                 } catch (e) {
                   console.error(e);
                   setActionStatus(`Shield request failed: ${actionError(e)}`);
+                } finally {
+                  setActiveAction(null);
                 }
               }}
               className="primary-button"
             >
-              Shield with wallet
+              {activeAction === "shield" ? "Shield request pending…" : "Shield with wallet"}
             </button>
 
             <button
+              disabled={activeAction !== null}
+              onClick={async () => {
+                if (!wallet || !tokenAddress || !actionAmount) { setActionStatus("Connect a STRK20-capable wallet and enter a token address and amount first."); return; }
+                try {
+                  setActiveAction("unshield");
+                  setActionStatus("Requesting an unshield to your currently connected public address. This withdrawal is public.");
+                  const res = await unshield(wallet, tokenAddress, actionAmount, Number(tokenDecimals));
+                  setActionStatus(`Unshield transaction submitted: ${res.transaction_hash}`);
+                } catch (e) {
+                  console.error(e);
+                  setActionStatus(`Unshield request failed: ${actionError(e)}`);
+                } finally {
+                  setActiveAction(null);
+                }
+              }}
+              className="secondary-button"
+              style={{ marginLeft: 8 }}
+            >
+              {activeAction === "unshield" ? "Unshield request pending…" : "Unshield to my wallet"}
+            </button>
+
+            <button
+              disabled={activeAction !== null}
               onClick={async () => {
                 if (!wallet || !tokenAddress || !recipient || !actionAmount) { setActionStatus("Connect a STRK20-capable wallet and enter a token, registered recipient, and amount first."); return; }
                 try {
+                  setActiveAction("transfer");
                   setActionStatus("Requesting private transfer from your wallet.");
                   const res = await privateTransfer(wallet, tokenAddress, actionAmount, recipient, Number(tokenDecimals));
                   setActionStatus(`Private transfer submitted: ${res.transaction_hash}`);
                 } catch (e) {
                   console.error(e);
                   setActionStatus(`Private transfer request failed: ${actionError(e)}`);
+                } finally {
+                  setActiveAction(null);
                 }
               }}
               className="secondary-button"
@@ -321,7 +352,7 @@ export default function Home() {
           </div>
 
           <p style={{ color: 'var(--muted)', marginTop: 14 }}>
-            {actionStatus || "Shielding is public and requires an ERC-20 approval before the private deposit. Enter the human amount you want to shield; GhostLine converts it using the token decimals and sends Ready the required felt format. Private transfers require a recipient already registered with the privacy pool."}
+            {actionStatus || "Shielding may require an ERC-20 approval followed by a STRK20 deposit. GhostLine sends one shield request and locks this control until Ready responds. Unshielding sends shielded funds back to the connected public wallet and is public. Private transfers require a recipient already registered with the privacy pool."}
           </p>
 
           <div hidden aria-hidden="true" style={{ marginTop: 22, borderTop: '1px solid rgba(148,163,184,0.08)', paddingTop: 16 }}>
