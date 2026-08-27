@@ -171,6 +171,16 @@ export async function shield(account: WalletAccountV6, token: string, amount: st
   return account.strk20InvokeTransaction(actions);
 }
 
+export async function unshield(account: WalletAccountV6, token: string, amount: string, decimals: number) {
+  const actions: STRK20_ACTION[] = [{
+    type: "withdraw",
+    token: validateAddress(token, "Token address"),
+    amount: tokenAmountToFelt(amount, decimals),
+    recipient: account.address,
+  }];
+  return account.strk20InvokeTransaction(actions);
+}
+
 export async function getPublicTokenBalance(account: WalletAccountV6, token: string) {
   const provider = new RpcProvider({ nodeUrl: providerUrl() });
   const result = await provider.callContract({
