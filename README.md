@@ -1,514 +1,161 @@
 # GhostLine
 
-## Private Yield Vault (experimental)
+**Privacy intelligence for Starknet.**
 
-GhostLine can route a shielded ERC-20 position into a reviewed Vesu ERC-4626 vault and return the minted vToken shares to a new private note. The Cairo 2 helper measures the actual share balance delta, so the private output is based on what the vault minted rather than a user-supplied value.
+GhostLine helps people make more considered private transactions. It combines a behavioural privacy-risk dashboard with non-custodial STRK20 wallet actions, so users can assess timing, address reuse, activity history, and transaction patterns before moving assets.
 
-GhostLine routes its default live Vesu action through the [official mainnet Vesu reference helper](https://voyager.online/contract/0x028b49bc7a48b92d06d436d90e889729d7161dfc2fef3f16b674029bf7abc336), which the STRK20 documentation identifies as deployed on mainnet. GhostLine's own deployed experimental helper is recorded in `strk20.json`; it is retained for further compatibility testing, not selected for the judge-facing route. `NEXT_PUBLIC_GHOSTLINE_YIELD_HELPER` can explicitly override the default.
+Built for the [STRK20 Private Sprint](https://github.com/starkience/strk20-hackathon) on Starknet Mainnet.
 
-The first prefilled route is the Vesu Genesis Pool STRK market. Its STRK underlying and vSTRK addresses are taken from Vesu's official [`pools_sn_mainnet.json`](https://github.com/vesuxyz/changelog/blob/main/pools_sn_mainnet.json). Other vault addresses remain manual and should be independently verified before use.
+## What GhostLine does
 
-> **A privacy firewall that detects transaction leakage before you sign on Starknet.**
+- Scores a proposed transaction's behavioural privacy posture.
+- Explains the signals behind that score and suggests practical privacy improvements.
+- Connects to a STRK20-capable Starknet wallet without taking custody or requesting private keys or viewing keys.
+- Shields supported ERC-20 tokens into the STRK20 privacy pool.
+- Shows public and shielded token balances after wallet consent.
+- Sends private transfers to registered pool recipients.
+- Unshields assets back to the connected public wallet.
+- Includes a Vesu private-yield route and a Cairo helper integration for the next stage of private DeFi.
 
-Ghostline is a privacy-security layer for **Starknet** that analyzes transactions before execution, identifies potential privacy leakage, explains the risks, and recommends safer ways to transact.
+## Why GhostLine
 
-Privacy on-chain is not simply a matter of using a shielded transfer.
+Using a privacy pool is not the same as having good privacy hygiene. Observable behaviour can still make activity easier to correlate:
 
-**Your transaction may be private. Your behavior might not be.**
+- Immediate movement after a public action
+- Repeated use of the same addresses
+- Predictable transaction timing
+- Recurring transaction patterns
+- Distinctive transfer sizes
 
-Ghostline is built to help users understand that difference.
-
----
-
-## The Problem
-
-Privacy-preserving transactions can still expose useful signals through transaction behavior.
-
-Even when the underlying asset transfer is shielded, patterns such as:
-
-* Timing
-* Transaction frequency
-* Amount similarity
-* Address reuse
-* Funding behavior
-* Shielding and unshielding patterns
-* Repeated interactions
-
-can potentially make otherwise private activity easier to correlate.
-
-Most users don't have the tools or expertise to evaluate these risks before signing a transaction.
-
-A wallet asks:
-
-> **"Do you want to sign?"**
-
-Ghostline asks:
-
-> **"Do you understand what signing this could reveal?"**
-
----
-
-## The Solution
-
-Ghostline acts as a **privacy firewall between the user and the transaction**.
-
-Before a transaction is signed, Ghostline analyzes the available transaction and historical context, calculates a privacy-risk score, identifies potential leakage, and provides actionable recommendations.
+GhostLine is the user-facing layer between those choices and the private transaction. It does not promise anonymity; it makes privacy trade-offs visible before the user signs.
 
 ```text
-User
- │
- ▼
-Transaction
- │
- ▼
-┌─────────────────────┐
-│      GHOSTLINE      │
-│   Privacy Firewall  │
-└──────────┬──────────┘
-           │
-     ┌─────┴─────┐
-     ▼           ▼
-   Detect      Explain
-     │           │
-     └─────┬─────┘
-           ▼
-        Optimize
-           │
-           ▼
-      Sign Safely
+Transaction intent
+       |
+       v
+GhostLine privacy analysis
+       |
+       +--> risk signals and recommendations
+       |
+       v
+STRK20-capable wallet
+       |
+       v
+Starknet Mainnet
 ```
 
----
+## Product flow
 
-## Core Principle
+1. Connect a privacy-enabled Starknet wallet.
+2. Set the transaction context in the privacy dashboard.
+3. Review the risk score, findings, and recommendations.
+4. Select a token and enter a human-readable amount.
+5. Shield, transfer privately, or unshield with the wallet.
+6. Refresh public and shielded balances when needed.
 
-### **Private by design is not necessarily private in practice.**
+The wallet owns signing, note discovery, proving, and private state. GhostLine only sends the requested STRK20 action through the Wallet API.
 
-Ghostline focuses on the gap between **transaction privacy** and **behavioral privacy**.
+## STRK20 actions
 
-Instead of simply labeling a transaction "private," Ghostline attempts to answer:
+### Shield
 
-> **How much privacy does this transaction actually provide in its current context?**
+Moves a public ERC-20 balance into the privacy pool. Enter the ordinary token amount—for example, `10` for 10 STRK—and GhostLine converts it to the token's smallest unit before requesting the wallet action.
 
----
+Depending on the token and wallet, shielding can involve an ERC-20 approval followed by the STRK20 deposit. GhostLine locks its action controls while a request is in progress.
 
-# Features
+### Private transfer
 
-## 🛡️ Privacy Firewall
+Moves value inside the STRK20 pool. The recipient must already be registered with the privacy pool.
 
-Ghostline evaluates a transaction before the user signs it.
+### Unshield
 
-Depending on the detected risk, the firewall can:
+Withdraws the entered shielded amount to the currently connected public wallet. Withdrawals are public by design because they return funds to a public ERC-20 address.
 
-* Allow low-risk transactions
-* Warn about potential privacy leakage
-* Recommend safer execution strategies
-* Highlight high-risk transactions
-* Give users the option to proceed consciously
+### Balances
 
----
+GhostLine reads the public token balance using its configured Mainnet RPC and asks the connected wallet for the shielded balance. The application never receives a viewing key.
 
-## 📊 Privacy Risk Score
+## Privacy score
 
-Every analyzed transaction receives a privacy score.
+The dashboard evaluates the context selected by the user and presents a score from 0–100:
+
+| Score | Meaning |
+| --- | --- |
+| 0–34 | Low risk |
+| 35–54 | Moderate risk |
+| 55–74 | High risk |
+| 75–100 | Critical |
+
+Current scoring signals include asset path, timing, address reuse, recent activity level, recurring patterns, and amount bands. The score is decision support, not a guarantee of anonymity or an on-chain surveillance service.
+
+## Architecture
 
 ```text
-92–100    🟢 Strong privacy
-70–91     🟡 Moderate risk
-40–69     🟠 High risk
-0–39      🔴 Critical risk
+Next.js interface
+  ├─ Privacy-score engine
+  ├─ Starknet Wallet API integration
+  │   ├─ Shield
+  │   ├─ Private transfer
+  │   ├─ Unshield
+  │   └─ Shielded balance consent request
+  ├─ Mainnet RPC balance reader
+  └─ Cairo yield-helper artifacts
+
+User wallet
+  ├─ Signing key
+  ├─ Viewing key
+  ├─ Note discovery
+  └─ Proof generation
 ```
 
-The score is intended to summarize multiple privacy signals rather than treating privacy as a simple yes/no property.
+## Private yield direction
 
----
+GhostLine is extending privacy beyond transfers with a Vesu yield route. The design uses a Cairo `privacy_invoke` helper to deposit an underlying asset into a Vesu vault or redeem vToken shares, then return the measured result to a private open note.
 
-## 🔍 Explain the Risk
+The repository includes the Cairo helper source and compiled artifacts. The app also records its deployed GhostLine helper and mainnet STRK20 transactions in [`strk20.json`](./strk20.json).
 
-Ghostline doesn't just produce a number.
+## Stack
 
-It explains **why** a transaction may be risky.
+- Next.js 14 and React 18
+- TypeScript
+- `starknet` 10.4
+- Starknet Wallet API (`WalletAccountV6`)
+- STRK20 privacy pool
+- Starknet Mainnet (`SN_MAIN`)
+- Alchemy Starknet RPC
+- Cairo 2 helper contract
 
-Example:
+## Run locally
 
-```text
-PRIVACY SCORE
-61 / 100
+Requirements: Node.js 20+ and a privacy-enabled Starknet wallet extension.
 
-⚠ Timing correlation
-Your transaction occurs shortly
-after a related activity.
-
-⚠ Amount similarity
-The transaction amount closely
-resembles a recent movement.
-
-✓ Shielded asset
-✓ No obvious address reuse
+```bash
+git clone https://github.com/Leequidice/GhostLine.git
+cd GhostLine
+npm install
+cp .env.example .env.local
+npm run dev
 ```
 
-The goal is to make privacy understandable to ordinary users rather than requiring them to understand privacy infrastructure themselves.
+Set these values in `.env.local`:
 
----
-
-## ⚡ Transaction Optimization
-
-When Ghostline detects a potential privacy issue, it can provide recommendations for reducing the risk.
-
-Example:
-
-```text
-CURRENT SCORE
-61 / 100
-
-GHOSTLINE RECOMMENDS
-
-Option A
-Wait before executing
-Estimated score: 82
-
-Option B
-Change execution pattern
-Estimated score: 88
-
-Option C
-Proceed now
-Score remains: 61
-
-[ OPTIMIZE ]
+```bash
+NEXT_PUBLIC_PROVIDER_URL=https://starknet-mainnet.g.alchemy.com/v2/<YOUR_ALCHEMY_KEY>
+NEXT_PUBLIC_CHAIN_ID=SN_MAIN
 ```
 
-Ghostline is therefore not only a warning system.
+Keep RPC credentials out of Git. The Vercel project should use the same values as environment variables.
 
-It is intended to become a **privacy decision engine**.
+## Project artifacts
 
----
+- [`strk20.json`](./strk20.json) — mainnet transaction hashes, GhostLine contract address, and demo metadata.
+- [`cairo/`](./cairo) — GhostLine yield-helper source and Scarb project.
+- [`public/cairo/`](./public/cairo) — compiled contract artifacts consumed by the operator deployment flow.
 
-# Privacy Signals
+## Security
 
-Ghostline's risk engine can evaluate signals such as:
-
-### Timing Correlation
-
-Analyze whether transaction timing creates an obvious relationship between otherwise separate activities.
-
-### Amount Correlation
-
-Identify potentially revealing similarities between transaction amounts.
-
-### Address Reuse
-
-Detect repeated use of addresses or identifiable transaction patterns.
-
-### Shield / Unshield Behavior
-
-Analyze how assets move between public and shielded environments.
-
-### Transaction Frequency
-
-Identify repetitive behavior that may make activity easier to correlate.
-
-### Historical Context
-
-Evaluate the proposed transaction against relevant activity from the user's transaction history.
-
----
-
-# Example
-
-A user wants to execute a private transfer:
-
-```text
-Send
-
-5,000 USDC
-
-[ Sign Transaction ]
-```
-
-Before signing, Ghostline analyzes the transaction.
-
-```text
-┌───────────────────────────────────┐
-│          GHOSTLINE                │
-│        PRIVACY FIREWALL           │
-├───────────────────────────────────┤
-│                                   │
-│ Privacy Score                     │
-│                                   │
-│          38 / 100                 │
-│       🔴 CRITICAL                 │
-│                                   │
-│ ⚠ Amount correlation              │
-│ ⚠ Timing correlation              │
-│ ⚠ Recent funding pattern          │
-│                                   │
-│ Recommended action:               │
-│ Change execution timing.          │
-│                                   │
-│ [ OPTIMIZE ]    [ SIGN ANYWAY ]   │
-└───────────────────────────────────┘
-```
-
-The user chooses **Optimize**.
-
-Ghostline proposes a safer execution strategy.
-
-```text
-OPTIMIZED TRANSACTION
-
-Privacy Score
-
-38 → 87
-
-✓ Reduced timing correlation
-✓ Reduced amount correlation
-✓ Improved transaction context
-
-[ EXECUTE ]
-```
-
-The user remains in control.
-
-Ghostline provides the information and recommendations rather than silently taking custody of funds.
-
----
-
-# Architecture
-
-Ghostline is designed as a middleware/privacy-security layer rather than another wallet.
-
-```text
-┌─────────────────────────────────────┐
-│             Wallet / dApp            │
-└──────────────────┬──────────────────┘
-                   │
-                   ▼
-┌─────────────────────────────────────┐
-│             Ghostline                │
-│                                     │
-│  Transaction Interceptor             │
-│           ↓                         │
-│  Privacy Risk Engine                │
-│           ↓                         │
-│  Risk Classification                │
-│           ↓                         │
-│  Recommendations / Optimization     │
-└──────────────────┬──────────────────┘
-                   │
-                   ▼
-┌─────────────────────────────────────┐
-│              STRK20                 │
-│       Privacy / Asset Layer         │
-└──────────────────┬──────────────────┘
-                   │
-                   ▼
-┌─────────────────────────────────────┐
-│             Starknet                │
-└─────────────────────────────────────┘
-```
-
----
-
-# Why Ghostline?
-
-Privacy infrastructure is becoming increasingly powerful.
-
-But stronger privacy primitives do not automatically mean users are making private transactions correctly.
-
-Ghostline focuses on the **human-facing security layer**.
-
-### Existing approach
-
-```text
-Privacy primitive
-       ↓
-Private transaction
-       ↓
-User assumes they're private
-```
-
-### Ghostline approach
-
-```text
-Privacy primitive
-       ↓
-Transaction
-       ↓
-Ghostline analysis
-       ↓
-Privacy risk
-       ↓
-Recommendation
-       ↓
-User decides
-```
-
----
-
-# STRK20 Integration
-
-Ghostline is designed for the **STRK20 ecosystem on Starknet**.
-
-STRK20 provides privacy-preserving primitives for ERC-20 assets.
-
-Ghostline focuses on the layer above those primitives:
-
-> **Helping users understand and manage the privacy consequences of using them.**
-
-The goal is meaningful integration with STRK20 rather than simply building a generic transaction analytics dashboard.
-
----
-
-# Security Model
-
-Ghostline is designed as a **non-custodial** security layer.
-
-Ghostline should not need custody of user funds.
-
-The intended flow is:
-
-```text
-Analyze
-   ↓
-Recommend
-   ↓
-User approves
-   ↓
-Wallet signs
-   ↓
-Transaction executes
-```
-
-Users retain control of their assets and signing authority.
-
----
-
-# MVP
-
-The initial MVP focuses on a complete privacy-firewall workflow:
-
-* [ ] Starknet wallet connection
-* [ ] STRK20 transaction detection
-* [ ] Transaction preflight analysis
-* [ ] Privacy risk scoring
-* [ ] Timing-correlation analysis
-* [ ] Amount-correlation analysis
-* [ ] Address-reuse detection
-* [ ] Risk explanations
-* [ ] Privacy recommendations
-* [ ] Transaction approval flow
-* [ ] Starknet mainnet deployment
-
----
-
-# Roadmap
-
-## Phase 1 — Privacy Firewall
-
-* Transaction interception
-* Privacy scoring
-* Risk explanations
-* Basic optimization recommendations
-* STRK20 integration
-
-## Phase 2 — Privacy Intelligence
-
-* Historical behavioral analysis
-* Improved correlation detection
-* Privacy trends
-* Wallet privacy health
-* Transaction simulations
-
-## Phase 3 — Ghostline SDK
-
-Allow Starknet applications to integrate Ghostline directly.
-
-```text
-Any Starknet dApp
-       ↓
-Ghostline SDK
-       ↓
-Privacy analysis
-       ↓
-STRK20
-```
-
-This turns Ghostline from a standalone application into infrastructure that other privacy-preserving applications can use.
-
----
-
-# Long-Term Vision
-
-Ghostline aims to become a **privacy security standard for Starknet**.
-
-Just as users expect wallets and browsers to warn them about security threats, users should eventually expect their financial applications to warn them about privacy threats.
-
-```text
-                    GHOSTLINE
-                        │
-        ┌───────────────┼───────────────┐
-        │               │               │
-      Wallets          DeFi            DAOs
-        │               │               │
-        └───────────────┼───────────────┘
-                        │
-                        ▼
-                PRIVACY FIREWALL
-                        │
-                        ▼
-                     STRK20
-                        │
-                        ▼
-                    Starknet
-```
-
----
-
-# The Vision
-
-> **Don't just transact privately. Know when you're actually private.**
-
-Ghostline turns transaction privacy from something users have to understand into something their wallet can help protect.
-
----
-
-## Project Status
-
-🚧 **Ghostline is currently under development.**
-
-This project is being developed for the **STRK20 Private Sprint** on Starknet.
-
-The implementation, privacy-risk methodology, and supported transaction types are subject to change during development.
-
----
-
-## Security Disclaimer
-
-Ghostline is experimental software.
-
-Privacy scores and recommendations should not be interpreted as guarantees of anonymity or absolute privacy.
-
-Blockchain privacy is probabilistic and context-dependent. Ghostline aims to identify potential leakage and improve user awareness, but cannot guarantee that a transaction is untraceable or unlinkable.
-
-**Never use experimental software with funds you cannot afford to lose.**
-
----
-
-## Contributing
-
-Contributions, feedback, and privacy research are welcome.
-
-Please open an issue to report bugs, suggest improvements, or discuss privacy-analysis methodologies.
-
----
+GhostLine is non-custodial. Never share a wallet seed phrase, private key, or viewing key with the application or its operators. Always verify token addresses, recipient addresses, and wallet confirmations before signing.
 
 ## License
 
 License information will be added as the project is finalized.
-
----
-
-# Ghostline
-
-### **A privacy firewall that detects transaction leakage before you sign on Starknet.**
