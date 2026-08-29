@@ -4,9 +4,7 @@
     "0x026f1aa66b1afcc282ebdc6873e644d4c121af119fe744d523938818df425631",
     "0x0143c44c6b52708d790a9a862275c0c786d1b6941c94bcf7709f368ecbcd5452"
   ],
-  "contracts": [
-    "0x177b8d1f76cd61ed62f32a8b8de117359f96042d2cde33b6a53518033418be0"
-  ],
+  "contracts": [],
   "demo_video": "https://youtu.be/OHU-7gOIOoQ",
   "demo_url": ""
 }
