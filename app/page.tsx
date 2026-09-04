@@ -21,6 +21,11 @@ const VESU_GENESIS_STRK = {
   decimals: "18",
 };
 
+type SubmittedAction = {
+  kind: "Shield" | "Unshield" | "Private transfer";
+  hash: string;
+};
+
 export default function Home() {
   const [tx, setTx] = useState<TxInput>(initialState);
   const [wallet, setWallet] = useState<WalletAccountV6 | null>(null);
@@ -39,6 +44,7 @@ export default function Home() {
   const [yieldHelperOverride, setYieldHelperOverride] = useState("");
   const [actionStatus, setActionStatus] = useState("");
   const [activeAction, setActiveAction] = useState<"shield" | "unshield" | "transfer" | null>(null);
+  const [submittedAction, setSubmittedAction] = useState<SubmittedAction | null>(null);
   const analysis = useMemo(() => analyzeTransaction(tx), [tx]);
 
   const handleChange = <K extends keyof TxInput>(key: K, value: TxInput[K]) => {
@@ -78,6 +84,7 @@ export default function Home() {
     setWalletAddress("Not connected");
     setWalletStatus("Wallet disconnected");
     setActionStatus("");
+    setSubmittedAction(null);
     setPublicBalance("—");
     setShieldedBalance("—");
   };
@@ -293,6 +300,7 @@ export default function Home() {
                   setActiveAction("shield");
                   setActionStatus("Shield request sent once. Ready may request an ERC-20 approval and then one STRK20 shield confirmation. Do not approve another Shield prompt after a successful shield transaction.");
                   const res = await shield(wallet, tokenAddress, actionAmount, Number(tokenDecimals));
+                  setSubmittedAction({ kind: "Shield", hash: res.transaction_hash });
                   setActionStatus(`Shield transaction submitted: ${res.transaction_hash}`);
                 } catch (e) {
                   console.error(e);
@@ -314,6 +322,7 @@ export default function Home() {
                   setActiveAction("unshield");
                   setActionStatus("Requesting an unshield to your currently connected public address. This withdrawal is public.");
                   const res = await unshield(wallet, tokenAddress, actionAmount, Number(tokenDecimals));
+                  setSubmittedAction({ kind: "Unshield", hash: res.transaction_hash });
                   setActionStatus(`Unshield transaction submitted: ${res.transaction_hash}`);
                 } catch (e) {
                   console.error(e);
@@ -336,6 +345,7 @@ export default function Home() {
                   setActiveAction("transfer");
                   setActionStatus("Requesting private transfer from your wallet.");
                   const res = await privateTransfer(wallet, tokenAddress, actionAmount, recipient, Number(tokenDecimals));
+                  setSubmittedAction({ kind: "Private transfer", hash: res.transaction_hash });
                   setActionStatus(`Private transfer submitted: ${res.transaction_hash}`);
                 } catch (e) {
                   console.error(e);
@@ -354,6 +364,32 @@ export default function Home() {
           <p style={{ color: 'var(--muted)', marginTop: 14 }}>
             {actionStatus || "Shielding may require an ERC-20 approval followed by a STRK20 deposit. GhostLine sends one shield request and locks this control until Ready responds. Unshielding sends shielded funds back to the connected public wallet and is public. Private transfers require a recipient already registered with the privacy pool."}
           </p>
+
+          {submittedAction ? (
+            <div style={{ marginTop: 14, borderTop: "1px solid rgba(148,163,184,0.18)", paddingTop: 12 }}>
+              <div className="wallet-label">Latest wallet action</div>
+              <p style={{ color: "var(--muted)", margin: "6px 0" }}>
+                {submittedAction.kind} was submitted. A private transaction can take time to become visible in the shielded balance.
+              </p>
+              <a
+                href={`https://voyager.online/tx/${submittedAction.hash}`}
+                target="_blank"
+                rel="noreferrer"
+                className="secondary-button"
+                style={{ display: "inline-block", textDecoration: "none" }}
+              >
+                View transaction in Voyager
+              </a>
+              <button
+                type="button"
+                className="secondary-button"
+                style={{ marginLeft: 8 }}
+                onClick={refreshBalances}
+              >
+                Refresh balances
+              </button>
+            </div>
+          ) : null}
 
           <div hidden aria-hidden="true" style={{ marginTop: 22, borderTop: '1px solid rgba(148,163,184,0.08)', paddingTop: 16 }}>
             <h4>Disabled legacy helper deployment controls</h4>
