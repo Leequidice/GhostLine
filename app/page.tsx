@@ -278,18 +278,22 @@ export default function Home() {
               <button type="button" onClick={useStrk} className="secondary-button" style={{ marginTop: 8 }}>Use STRK</button>
             </div>
             <div className="field">
-              <label htmlFor="recipient">Recipient (note id or address)</label>
-              <input id="recipient" value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="Registered recipient address" />
+              <label htmlFor="recipient">Recipient address (private transfer only)</label>
+              <input id="recipient" value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="0x registered STRK20 recipient" spellCheck={false} />
             </div>
             <div className="field">
-              <label htmlFor="actionAmount">Amount to shield</label>
-              <input id="actionAmount" inputMode="decimal" value={actionAmount} onChange={(event) => setActionAmount(event.target.value)} placeholder="10" />
+              <label htmlFor="actionAmount">Amount (token units)</label>
+              <input id="actionAmount" inputMode="decimal" value={actionAmount} onChange={(event) => setActionAmount(event.target.value)} placeholder="10" aria-describedby="amountHelp" />
             </div>
             <div className="field">
               <label htmlFor="tokenDecimals">Token decimals</label>
               <input id="tokenDecimals" inputMode="numeric" pattern="[0-9]*" value={tokenDecimals} onChange={(event) => setTokenDecimals(event.target.value)} placeholder="18 for STRK" />
             </div>
           </div>
+
+          <p id="amountHelp" style={{ color: "var(--muted)", margin: "10px 0 0" }}>
+            Use the same amount field for shield, unshield, or private transfer. The recipient field is only required for a private transfer; unshield always returns funds to the connected public wallet.
+          </p>
 
           <div style={{ marginTop: 12 }}>
             <button
